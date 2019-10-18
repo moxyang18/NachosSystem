@@ -64,8 +64,7 @@ public class KThread {
 			currentThread = this;
 			tcb = TCB.currentTCB();
 			name = "main";
-			restoreState();
-
+			restoreState(); 
 			createIdleThread();
 		}
 	}
@@ -202,8 +201,13 @@ public class KThread {
 		toBeDestroyed = currentThread;
 
 		currentThread.status = statusFinished;
-
+		if(this.toBeWakeUpAfter != null){
+			this.toBeWakeUpAfter.ready();
+			//this.toBeWakeUpAfter =null; // depends
+		}
 		sleep();
+
+		
 	}
 
 	/**
@@ -284,7 +288,22 @@ public class KThread {
 		Lib.debug(dbgThread, "Joining to thread: " + toString());
 
 		Lib.assertTrue(this != currentThread);
+		
 
+
+		//cuur is A. on A calls B.join()
+		if (this.status == statusFinished) {
+			return;
+		}
+		else {
+			Lib.assertTrue(this.toBeWakeUpAfter ==null);
+			this.toBeWakeUpAfter = currentThread();//Set B's tBWUA to be A
+	
+			int status_1 = Machine.interrupt().disable();
+			sleep(); //A sleep
+			int Machine.interrupt().restore(status_1);	
+				
+		}
 	}
 
 	/**
@@ -398,7 +417,7 @@ public class KThread {
 
 		public void run() {
 			for (int i = 0; i < 5; i++) {
-				System.out.println("*** thread " + which + " looped " + i
+				System.out.println("*** awesome thread " + which + " looped " + i
 						+ " times");
 				currentThread.yield();
 			}
