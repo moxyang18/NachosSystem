@@ -33,38 +33,54 @@ public class Rendezvous {
      * @param value the integer to exchange.
      */
     public int exchange (int tag, int value) {
-        boolean intStatus = Machine.interrupt().disable();
-        //Machine.interrupt().restore(intStatus);
-        Condition2 con1 = new Condition2(new Lock());
-        if(tag_cvQuque_Map.get(new Integer(tag))==null)
-            tag_cvQuque_Map.put(new Integer(tag), new LinkedList<Condition2>());
-        Condition2 other = tag_cvQuque_Map.get(new Integer(tag)).pollLast();
-
-        if(other==null){
-            con1.value=value;
-            tag_cvQuque_Map.get(new Integer(tag)).add(con1);
-            con1.sleep();
-            //player1 = KThread.currentThread();
+        boolean intStatus = Machine.interrupt();
+        Semaphore first; 
+        Semaphore second;
+        boolean odd;
+        if (semaphore_map.get(new Integer(tag)) ==null){
+            //init a semaphore for that tag
+            first = new Semaphore(0);
+            second = new Semaphore(0);
+            first.r_val =value;
+            first.complete = false;
+            odd = true;
+            sem_li = new ArrayList<Sempahore>();
+            sem_li.add(first);
+            sem_li.add(second);
+            semaphore_map.put(new Integer(tag),sem_li);
+            first.V();
+            second.P();
         }
-
-        else{
-            int result = other.value;
-            other.value = value;
-            other.wake();
-            Machine.interrupt().restore(intStatus);
-            return result;
-
-
-
-
+        else {
+            first=semaphore_map.get(new Integer(tag)).get(0);
+            second=semaphore_map.get(new Integer(tag)).get(1);
+            
+            if (first.complete){
+                first.r_val =value;
+                first.complete = false;
+                odd = true;
+                first.V();
+                second.P();
+            }
+            else{
+                second.r_val =value;
+                first.complete = true;
+                odd = false;
+                second.V();
+                first.P();
+            }
+            
+            
         }
-
-        int result = con1.value;
+        
+        int result;
+        if (odd) result = second.r_val;
+        else result = first.val; //exchange value
         Machine.interrupt().restore(intStatus);
         return result;
-
+   
     }
-    private HashMap<Integer,LinkedList<Condition2>> tag_cvQuque_Map;
+    private HashMap<Integer,ArrayList<Semaphore>> semaphore_Map;
 
     public static void rendezTest1() {
         final Rendezvous r = new Rendezvous();

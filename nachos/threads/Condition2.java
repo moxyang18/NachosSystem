@@ -108,7 +108,7 @@ public class Condition2 {
 
 
 	}
-	public int value;
+	
 	private Alarm alarm;
         private Lock conditionLock;
 	private ThreadQueue waitQueue = ThreadedKernel.scheduler.newThreadQueue(false);
