@@ -21,6 +21,7 @@ public class Condition2 {
 	 */
 	public Condition2(Lock conditionLock) {
 		this.conditionLock = conditionLock;
+		this.alarm = new Alarm();
 	}
 
 	/**
@@ -58,7 +59,8 @@ public class Condition2 {
 		boolean intStatus = Machine.interrupt().disable();
 		KThread thread = waitQueue.nextThread();
 		if(thread != null){
-			thread.ready();
+			if (!alarm.cancel(thread))
+				thread.ready();
 		}
 		Machine.interrupt().restore(intStatus);
 	}
@@ -73,7 +75,8 @@ public class Condition2 {
 		boolean intStatus = Machine.interrupt().disable();
 		KThread thread = waitQueue.nextThread();
 		while (thread !=null){
-			thread.ready();
+			if (!alarm.cancel(thread))
+				thread.ready();
 			thread = waitQueue.nextThread();
 		}
 		Machine.interrupt().restore(intStatus);
@@ -90,6 +93,20 @@ public class Condition2 {
 	 */
         public void sleepFor(long timeout) {
 		Lib.assertTrue(conditionLock.isHeldByCurrentThread());
+		boolean intStatus = Machine.interrupt().disable();
+
+		waitQueue.waitForAccess(KThread.currentThread());
+		
+		conditionLock.release();
+		alarm.waitUntil(timeout);	
+	
+		
+		conditionLock.acquire();
+	
+		Machine.interrupt().restore(intStatus);
+
+
+
 	}
 
         private Lock conditionLock;
