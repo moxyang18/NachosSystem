@@ -33,16 +33,16 @@ public class Rendezvous {
      * @param value the integer to exchange.
      */
     public int exchange (int tag, int value) {
-        int intStatus = Machine.interrupt().disable();
+        boolean intStatus = Machine.interrupt().disable();
         //Machine.interrupt().restore(intStatus);
-        con1 = new Condition2(new Lock());
-        if(tag_cvQuque_Map.get(Integer(tag))==null)
-            tag_cvQuque_Map.put(Integer(tag), new LinkedList<Condition2>());
-        other = tag_cvQuque_Map.get(Integer(tag)).pollLast();
+        Condition2 con1 = new Condition2(new Lock());
+        if(tag_cvQuque_Map.get(new Integer(tag))==null)
+            tag_cvQuque_Map.put(new Integer(tag), new LinkedList<Condition2>());
+        Condition2 other = tag_cvQuque_Map.get(new Integer(tag)).pollLast();
 
         if(other==null){
             con1.value=value;
-            tag_cvQuque_Map.get(Integer(tag)).add(con1);
+            tag_cvQuque_Map.get(new Integer(tag)).add(con1);
             con1.sleep();
             //player1 = KThread.currentThread();
         }
