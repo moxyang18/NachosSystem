@@ -27,7 +27,7 @@ public class Alarm {
 				timerInterrupt();
 			}
 		});
-		thread_list = new Vector<KThread>();
+		thread_list = new ArrayList<KThread>();
 		time_list = new ArrayList<Long> ();
 	}
 
@@ -47,14 +47,16 @@ public class Alarm {
 			//}
 			//else time_list.set(i, new Long(time_list.get(i).longValue() -500));
 			
-			if(time_list.get(i).longValue() >=0 &&Machine.timer().getTime()>= time_list.get(i).longValue())
+			//time_list.get(i).longValue() >=0 &&
+			if(Machine.timer().getTime()>= time_list.get(i).longValue())
 			{	thread_list.get(i).ready();
-				time_list.set(i,new Long(-1));
+				thread_list.remove(i);
+				time_list.remove(i);
 
 			}
 		}
-		KThread.currentThread().yield();
 		Machine.interrupt().restore(intStatus);
+		KThread.currentThread().yield();
 	}
 
 	/**
@@ -76,6 +78,8 @@ public class Alarm {
                 time_list.add(new Long(Machine.timer().getTime()+x));	
 		KThread.sleep();
 		Machine.interrupt().restore(intStatus);
+
+		Machine.interrupt().restore(intStatus);
 	}
 
         /**
@@ -88,7 +92,26 @@ public class Alarm {
 	 * @param thread the thread whose timer should be cancelled.
 	 */
         public boolean cancel(KThread thread) {
-		return false;
+			boolean intStatus =Machine.interrupt().disable();
+			index = -1;
+			for (int i =0; i < threa_list.size();i++){
+				if(thread_list.get(i) == thread){
+					index = i;
+					break;
+				}
+			}
+			if (index >=0){
+				KThread thread_ = thread_list.get(index);
+				thread_list.remove(index);
+				time_list.remove(index);
+				thread_.ready();
+				Machine.interrupt().restore(intStatus);
+				return true;
+			}
+			else {
+				Machine.interrupt().restore(intStatus);
+				return false;
+			}
 	}
 
 
