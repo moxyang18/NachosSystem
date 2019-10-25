@@ -30,11 +30,22 @@ public class Condition2 {
 	 * reacquire the lock before <tt>sleep()</tt> returns.
 	 */
 	public void sleep() {
+
+	
+		boolean intStatus = Machine.interrupt().disable();
 		Lib.assertTrue(conditionLock.isHeldByCurrentThread());
 
+		
+		waitQueue.waitForAccess(KThread.currentThread());
+		
 		conditionLock.release();
-
+		KThread.sleep();	
+	
+		
 		conditionLock.acquire();
+	
+		Machine.interrupt().restore(intStatus);
+		
 	}
 
 	/**
@@ -43,6 +54,13 @@ public class Condition2 {
 	 */
 	public void wake() {
 		Lib.assertTrue(conditionLock.isHeldByCurrentThread());
+	
+		boolean intStatus = Machine.interrupt().disable();
+		KThread thread = waitQueue.nextThread();
+		if(thread != null){
+			thread.ready();
+		}
+		Machine.interrupt().restore(intStatus);
 	}
 
 	/**
@@ -51,6 +69,15 @@ public class Condition2 {
 	 */
 	public void wakeAll() {
 		Lib.assertTrue(conditionLock.isHeldByCurrentThread());
+		
+		boolean intStatus = Machine.interrupt().disable();
+		KThread thread = waitQueue.nextThread();
+		while (thread !=null){
+			thread.ready();
+			thread = waitQueue.nextThread();
+		}
+		Machine.interrupt().restore(intStatus);
+
 	}
 
         /**
@@ -66,4 +93,45 @@ public class Condition2 {
 	}
 
         private Lock conditionLock;
+	private ThreadQueue waitQueue = ThreadedKernel.scheduler.newThreadQueue(false);
+	private static class InterlockTest {
+
+		private static Lock lock;
+		private static Condition2 cv;
+	
+		private static class Interlocker implements Runnable {
+			public void run() {
+				lock.acquire();
+				for (int i = 0; i < 10; i++) {
+					System.out.println(KThread.currentThread().getName());
+					cv.wake();
+					cv.sleep();
+				}
+				lock.release();
+			}
+		}
+
+		public InterlockTest(){
+			lock = new Lock();
+			cv = new Condition2(lock);
+			KThread ping = new KThread(new Interlocker());
+			ping.setName("ping");
+			KThread pong = new KThread(new Interlocker());
+			pong.setName("pong");
+
+			ping.fork();
+			pong.fork();
+			//for (int i = 0; i<50; i++) 
+			//	KThread.currentThread().yield();
+			ping.join();
+			
+		}
+	}
+
+	public static void selfTest(){
+		new InterlockTest();
+	}
+
+
+
 }

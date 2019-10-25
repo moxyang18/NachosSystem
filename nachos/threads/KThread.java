@@ -194,7 +194,10 @@ public class KThread {
 	 */
 	public static void finish() {
 		Lib.debug(dbgThread, "Finishing thread: " + currentThread.toString());
-
+		boolean intStatus = Machine.interrupt().disable();
+		if(currentThread.toBeWakeUpAfter != null)
+			currentThread.toBeWakeUpAfter.ready();
+		Machine.interrupt().restore(intStatus);
 		Machine.interrupt().disable();
 
 		Machine.autoGrader().finishingCurrentThread();
@@ -203,10 +206,10 @@ public class KThread {
 		toBeDestroyed = currentThread;
 
 		currentThread.status = statusFinished;
-		if(currentThread.toBeWakeUpAfter != null){
-			currentThread.toBeWakeUpAfter.ready();
+		//if(currentThread.toBeWakeUpAfter != null){
+		//	currentThread.toBeWakeUpAfter.ready();
 			//this.toBeWakeUpAfter =null; // depends
-		}
+		//}
 		sleep();
 
 		
@@ -291,6 +294,8 @@ public class KThread {
 
 		Lib.assertTrue(this != currentThread);
 		
+	
+		boolean status_1 = Machine.interrupt().disable();
 		//cuur is A. on A calls B.join()
 		if (this.status == statusFinished) {
 			return;
@@ -299,11 +304,12 @@ public class KThread {
 			Lib.assertTrue(this.toBeWakeUpAfter ==null);
 			this.toBeWakeUpAfter = currentThread();//Set B's tBWUA to be A
 	
-			boolean status_1 = Machine.interrupt().disable();
 			sleep(); //A sleep
-			Machine.interrupt().restore(status_1);	
 				
 		}
+
+		Machine.interrupt().restore(status_1);	
+				
 	}
 
 	/**
