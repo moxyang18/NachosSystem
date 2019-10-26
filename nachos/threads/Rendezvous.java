@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.ArrayList;
 import nachos.machine.*;
+import java.util.Vector;
 
 /**
  * A <i>Rendezvous</i> allows threads to synchronously exchange values.
@@ -14,11 +15,11 @@ public class Rendezvous {
      */
 
     private HashMap<Integer, Integer> flagMap;
-    private HashMap<Integer, LinkedList<Integer>> valMap; // hashmap of tag&values to exchange
+    private HashMap<Integer, LinkedList<Vector<Integer>>>  valMap; // hashmap of tag&values to exchange
     private HashMap<Integer, Lock> lockMap; // hashmap of tag&lock
     private HashMap<Integer, Condition> condMap; // hashmap of tag&condition
     public Rendezvous () {
-        valMap = new HashMap<Integer, LinkedList<Integer>>();
+        valMap = new HashMap<Integer, LinkedList<Vector<Integer>>>();
     	lockMap = new HashMap<Integer, Lock>();
         condMap = new HashMap<Integer, Condition>();
     	flagMap = new HashMap<Integer, Integer>();
@@ -57,15 +58,15 @@ public class Rendezvous {
 	
 	if (condMap.get(tag) == null){
 		condMap.put(tag, new Condition(lock));
-		flagMap.put(tag, new Integer(0));
+		flagMap.put(tag, new Integer(1));
 	}
 	// get the condition Lock
 	Condition cond = condMap.get(tag);
 	
 	int exchangedVal;
-	int evenTime = flagMap.get(tag).intValue();
+	int count = flagMap.get(tag).intValue();
 	
-	flagMap.put(tag, new Integer(1-evenTime));
+	flagMap.put(tag, new Integer(count+1));
 	// check whether the thread has received a value to exchange	
 	// if not, block the thread waiting for another thread to exchange value
 	// if so, do not block the thread, exchange value 
@@ -78,16 +79,26 @@ public class Rendezvous {
 		
 
 		// put a new linkedlist containing the int value to be exchanged linked with tag
-		LinkedList<Integer> nLink = new LinkedList<Integer>();
-		nLink.add(new Integer(value));
+		LinkedList<Vector<Integer>> nLink = new LinkedList<Vector<Integer>>();
+		Vector<Integer> v = new Vector<Integer>();
+		v.add(new Integer(count));
+		v.add(new Integer(value));
+		nLink.add(v);
 		//valMap.put(tag, new LinkedList<Integer>(new Integer(value)));
 		valMap.put(tag, nLink);
 
 		// sleep the current thread waiting for next thread that calls exchange
 		cond.sleep();
-		
+		LinkedList<Vector<Integer>> li = valMap.get(tag);
+		int r = -1;
+		for(int i =0; i<li.size();i++){
+			if(li.get(i).get(0).intValue() == count+1){
+				r=i;
+			}
+		}
+		if(r == -1) System.out.println("ERROR, WRONG INDEX");
 		// get the exchanged value and remove it from valMap
-		exchangedVal = valMap.get(tag).removeFirst().intValue();
+		exchangedVal = li.remove(r).get(1).intValue();
 	}
 
 	// when the tagMap contains at least one value to exchange
@@ -95,13 +106,16 @@ public class Rendezvous {
 
 		
 			
-		if(evenTime ==1){
+		if(count %2 ==0){
 
 		// get the exchange value and remove it from valMap
-		exchangedVal = valMap.get(tag).removeLast().intValue();
+		exchangedVal = valMap.get(tag).removeLast().get(1).intValue();
 		
 		// add value to the valMap
-		valMap.get(tag).addLast(new Integer(value));
+		Vector<Integer> v = new Vector<Integer>();
+		v.add(new Integer(count));
+		v.add(new Integer(value));
+		valMap.get(tag).addLast(v);
 		//addFirst or addLast?
 		
 		// wake the first thread that is asleep
@@ -110,9 +124,22 @@ public class Rendezvous {
 		}
 
 		else{
-		valMap.get(tag).addLast(new Integer(value));		
+		Vector<Integer> v = new Vector<Integer>();
+		v.add(new Integer(count));
+		v.add(new Integer(value));
+		valMap.get(tag).addLast(v);
+			
 		cond.sleep();
-		exchangedVal = valMap.get(tag).removeFirst().intValue();
+		LinkedList<Vector<Integer>> li = valMap.get(tag);
+		int r = -1;
+		for(int i =0; i<li.size();i++){
+			if(li.get(i).get(0).intValue()==count+1){
+				r=i;
+			}
+		}
+		if(r == -1) System.out.println("ERROR, WRONG INDEX");
+		// get the exchanged value and remove it from valMap
+		exchangedVal = li.remove(r).get(1).intValue();
 		cond.wake();
 		}
 		//if removed A's val and B put it's val in list,
