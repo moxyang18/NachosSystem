@@ -13,7 +13,8 @@ public class Rendezvous {
      * Allocate a new Rendezvous.
      */
     public Rendezvous () {
-        this.semaphore_map = new HashMap<Integer,ArrayList<Semaphore>>(); 
+        this.semaphore_map = new HashMap<Integer,ArrayList<Semaphore>>();
+        this.val_map = new HashMap<Integer,LinkedList<Integer>> (); 
     }
 
     /**
@@ -32,7 +33,66 @@ public class Rendezvous {
      * @param tag the synchronization tag.
      * @param value the integer to exchange.
      */
+
+
+    
+
     public int exchange (int tag, int value) {
+
+        int val_first = val_map.get(new Integer(tag)).removeFirst().intValue();
+
+
+
+        boolean intStatus = Machine.interrupt().disable();
+        Semaphore first; 
+        Semaphore second;
+        boolean odd;
+        LinkedList<Integer> val_li;
+        if (semaphore_map.get(new Integer(tag)) ==null){
+            //init a semaphore for that tag
+            first = new Semaphore(0);
+            second = new Semaphore(0);
+            val_li= new LinkedList<Integer>();
+            val_li.addFirst(new Integer(value));
+            val_map.put(new Integer(tag),val_li);
+            
+            //first.complete = false;
+            //odd = true;
+            ArrayList<Semaphore> sem_li = new ArrayList<Semaphore>();
+            sem_li.add(first);
+            sem_li.add(second);
+            semaphore_map.put(new Integer(tag),sem_li);
+            first.V();
+            second.P();
+        }
+        else {
+            first=semaphore_map.get(new Integer(tag)).get(0);
+            second=semaphore_map.get(new Integer(tag)).get(1);
+            val_li =val_map.get(new Integer(tag));
+            
+            if(val_li.isEmpty()){
+                val_li.addFirst(new Integer(value));
+                first.V();
+                second.P();
+            }
+            else{
+                val_li.addLast(new Integer(value));
+                second.V();
+                first.P();
+            }
+            
+            
+        }
+        
+        int result = val_li.removeFirst().intValue(); //exchange value
+        Machine.interrupt().restore(intStatus);
+        return result;
+   
+    }
+
+
+
+    public int exchange2 (int tag, int value) {
         boolean intStatus = Machine.interrupt().disable();
         Semaphore first; 
         Semaphore second;
@@ -81,6 +141,7 @@ public class Rendezvous {
    
     }
     private HashMap<Integer,ArrayList<Semaphore>> semaphore_map;
+    private HashMap<Integer,LinkedList<Integer>> val_map;
 
     public static void rendezTest1() {
         final Rendezvous r = new Rendezvous();
