@@ -12,9 +12,17 @@ public class Rendezvous {
     /**
      * Allocate a new Rendezvous.
      */
+
+
+    private HashMap<Integer, LinkedList<Integer>> valMap; // hashmap of tag&values to exchange
+    private HashMap<Integer, Lock> lockMap; // hashmap of tag&lock
+    private HashMap<Integer, Condition> condMap; // hashmap of tag&condition
     public Rendezvous () {
         this.semaphore_map = new HashMap<Integer,ArrayList<Semaphore>>();
         this.val_map = new HashMap<Integer,LinkedList<Integer>> (); 
+        valMap = new HashMap<Integer, LinkedList<Integer>>();
+    	lockMap = new HashMap<Integer, Lock>();
+        condMap = new HashMap<Integer, Condition>();
     }
 
     /**
@@ -38,56 +46,67 @@ public class Rendezvous {
     
 
     public int exchange (int tag, int value) {
+	// create Lock and Condition variables for this tag if not yet created
+	if (lockMap.get(tag) == null)
+		lockMap.put(tag, new Lock());
+	if (condMap.get(tag) == null)
+		condMap.put(tag, new Condition(lockMap.get(tag)));
 
-        int val_first = val_map.get(new Integer(tag)).removeFirst().intValue();
+	// get the condition Lock
+	lock =lockMap.get(tag);
+	cond = condMap.get(tag);
 
+	int exchangedVal;
+	// check whether the thread has received a value to exchange	
+	// if not, block the thread waiting for another thread to exchange value
+	// if so, do not block the thread, exchange value 
+	
+	// when the tagMap does not contain any thread to exchange value
+	if (valMap.get(tag) == null || valMap.get(tag).size() == 0){
+	
+		
+		// acquire the condition Lock
+		lock.acquire();
+		
 
+		// put a new linkedlist containing the int value to be exchanged linked with tag
+		LinkedList<Integer> nLink = new LinkedList<Integer>();
+		nLink.add(new Integer(value));
+		//valMap.put(tag, new LinkedList<Integer>(new Integer(value)));
+		valMap.put(tag, nLink);
 
-        boolean intStatus = Machine.interrupt().disable();
-        Semaphore first; 
-        Semaphore second;
-        boolean odd;
-        LinkedList<Integer> val_li;
-        if (semaphore_map.get(new Integer(tag)) ==null){
-            //init a semaphore for that tag
-            first = new Semaphore(0);
-            second = new Semaphore(0);
-            val_li= new LinkedList<Integer>();
-            val_li.addFirst(new Integer(value));
-            val_map.put(new Integer(tag),val_li);
-            
-            //first.complete = false;
-            //odd = true;
-            ArrayList<Semaphore> sem_li = new ArrayList<Semaphore>();
-            sem_li.add(first);
-            sem_li.add(second);
-            semaphore_map.put(new Integer(tag),sem_li);
-            first.V();
-            second.P();
-        }
-        else {
-            first=semaphore_map.get(new Integer(tag)).get(0);
-            second=semaphore_map.get(new Integer(tag)).get(1);
-            val_li =val_map.get(new Integer(tag));
-            
-            if(val_li.isEmpty()){
-                val_li.addFirst(new Integer(value));
-                first.V();
-                second.P();
-            }
-            else{
-                val_li.addLast(new Integer(value));
-                second.V();
-                first.P();
-            }
-            
-            
-        }
-        
-        int result = val_li.removeFirst().intValue(); //exchange value
-        Machine.interrupt().restore(intStatus);
-        return result;
-   
+		// sleep the current thread waiting for next thread that calls exchange
+		cond.sleep();
+		
+		// get the exchanged value and remove it from valMap
+		exchangedVal = valMap.get(tag).removeFirst().intValue();
+	}
+
+	// when the tagMap contains at least one value to exchange
+	else {
+
+		// acquire the condition Lock
+		lock.acquire();
+
+		// get the exchange value and remove it from valMap
+		exchangedVal = valMap.get(tag).removeFirst().intValue();
+		
+		// add value to the valMap
+		valMap.get(tag).add(new Integer(value));
+		//addFirst or addLast?
+		
+		// wake the first thread that is asleep
+		cond.wake();
+
+		//if removed A's val and B put it's val in list,
+		//when A woke up, it is on ready state, could be after C. Then C would acquire the lock  should acquire the lock and even though A
+	}
+		
+	// release the lock before return
+	lock.release();
+	
+	// return the value that gets exchanged to the thread
+	return exchangedVal;
     }
 
 
@@ -142,7 +161,6 @@ public class Rendezvous {
     }
     private HashMap<Integer,ArrayList<Semaphore>> semaphore_map;
     private HashMap<Integer,LinkedList<Integer>> val_map;
-
     public static void rendezTest1() {
         final Rendezvous r = new Rendezvous();
     
