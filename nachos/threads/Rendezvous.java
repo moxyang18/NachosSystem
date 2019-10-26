@@ -132,12 +132,15 @@ public class Rendezvous {
 		cond.sleep();
 		LinkedList<Vector<Integer>> li = valMap.get(tag);
 		int r = -1;
-		for(int i =0; i<li.size();i++){
+		while(r==-1){
+			for(int i =0; i<li.size();i++){
 			if(li.get(i).get(0).intValue()==count+1){
 				r=i;
 			}
+			}
+			if(r==-1) cond.sleep();
 		}
-		if(r == -1) System.out.println("ERROR, WRONG INDEX");
+		 
 		// get the exchanged value and remove it from valMap
 		exchangedVal = li.remove(r).get(1).intValue();
 		cond.wake();
@@ -250,15 +253,27 @@ public class Rendezvous {
 		}
 	});
 	t7.setName("t7_tag0");
-
+	
+	KThread t8 = new KThread( new Runnable(){
+		public void run(){
+			int tag = 4;
+			int send = 141;
+                System.out.println ("Thread " + KThread.currentThread().getName() + " exchanging " + send);
+                int recv = r.exchange (tag, send);
+                //Lib.assertTrue (recv == 10, "Was expecting " + 10 + " but received " + recv);
+                System.out.println ("Thread " + KThread.currentThread().getName() + " received " + recv);
+		}
+	});
+	t8.setName("t8_tag4");
 
 
 
 		
-	t1.fork(); t3.fork();t2.fork();t4.fork();t5.fork();t6.fork();t7.fork();
+	t1.fork(); t3.fork();t2.fork();t4.fork();t5.fork();t6.fork();t8.fork();t7.fork();
         // assumes join is implemented correctly
-        t1.join(); t3.join();t2.join();t4.join();t5.join();t6.join();t7.join();
-        }
+        t1.join(); t3.join();t2.join();t4.join();t5.join();t6.join();t8.join();t7.join();
+        
+    	}
     
         // Invoke Rendezvous.selfTest() from ThreadedKernel.selfTest()
     
