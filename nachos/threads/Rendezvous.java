@@ -13,16 +13,15 @@ public class Rendezvous {
      * Allocate a new Rendezvous.
      */
 
-
+    private HashMap<Integer, Integer> flagMap;
     private HashMap<Integer, LinkedList<Integer>> valMap; // hashmap of tag&values to exchange
     private HashMap<Integer, Lock> lockMap; // hashmap of tag&lock
     private HashMap<Integer, Condition> condMap; // hashmap of tag&condition
     public Rendezvous () {
-        this.semaphore_map = new HashMap<Integer,ArrayList<Semaphore>>();
-        this.val_map = new HashMap<Integer,LinkedList<Integer>> (); 
         valMap = new HashMap<Integer, LinkedList<Integer>>();
     	lockMap = new HashMap<Integer, Lock>();
         condMap = new HashMap<Integer, Condition>();
+    	flagMap = new HashMap<Integer, Integer>();
     }
 
     /**
@@ -47,16 +46,26 @@ public class Rendezvous {
 
     public int exchange (int tag, int value) {
 	// create Lock and Condition variables for this tag if not yet created
-	if (lockMap.get(tag) == null)
-		lockMap.put(tag, new Lock());
-	if (condMap.get(tag) == null)
-		condMap.put(tag, new Condition(lockMap.get(tag)));
 
+	Lock lock =lockMap.get(tag);
+    	if (lock == null){
+		lock = new Lock();
+		lockMap.put(tag, lock);
+	}
+	
+	lock.acquire();
+	
+	if (condMap.get(tag) == null){
+		condMap.put(tag, new Condition(lock));
+		flagMap.put(tag, new Integer(0));
+	}
 	// get the condition Lock
-	lock =lockMap.get(tag);
-	cond = condMap.get(tag);
-
+	Condition cond = condMap.get(tag);
+	
 	int exchangedVal;
+	int evenTime = flagMap.get(tag).intValue();
+	
+	flagMap.put(tag, new Integer(1-evenTime));
 	// check whether the thread has received a value to exchange	
 	// if not, block the thread waiting for another thread to exchange value
 	// if so, do not block the thread, exchange value 
@@ -66,7 +75,6 @@ public class Rendezvous {
 	
 		
 		// acquire the condition Lock
-		lock.acquire();
 		
 
 		// put a new linkedlist containing the int value to be exchanged linked with tag
@@ -85,21 +93,31 @@ public class Rendezvous {
 	// when the tagMap contains at least one value to exchange
 	else {
 
-		// acquire the condition Lock
-		lock.acquire();
+		
+			
+		if(evenTime ==1){
 
 		// get the exchange value and remove it from valMap
-		exchangedVal = valMap.get(tag).removeFirst().intValue();
+		exchangedVal = valMap.get(tag).removeLast().intValue();
 		
 		// add value to the valMap
-		valMap.get(tag).add(new Integer(value));
+		valMap.get(tag).addLast(new Integer(value));
 		//addFirst or addLast?
 		
 		// wake the first thread that is asleep
 		cond.wake();
 
+		}
+
+		else{
+		valMap.get(tag).addLast(new Integer(value));		
+		cond.sleep();
+		exchangedVal = valMap.get(tag).removeFirst().intValue();
+		cond.wake();
+		}
 		//if removed A's val and B put it's val in list,
-		//when A woke up, it is on ready state, could be after C. Then C would acquire the lock  should acquire the lock and even though A
+		//when A woke up, it is on ready state, could be after C. 
+		//B would execute to the end and return A's value. val_list now has B's value. Then C would acquire the lock and enter the queue. Needs to do something so that C won't be able to run earlier than A / at least not get A's value.
 	}
 		
 	// release the lock before return
@@ -111,56 +129,6 @@ public class Rendezvous {
 
 
 
-    public int exchange2 (int tag, int value) {
-        boolean intStatus = Machine.interrupt().disable();
-        Semaphore first; 
-        Semaphore second;
-        boolean odd;
-        if (semaphore_map.get(new Integer(tag)) ==null){
-            //init a semaphore for that tag
-            first = new Semaphore(0);
-            second = new Semaphore(0);
-            first.r_val =value;
-            first.complete = false;
-            odd = true;
-            ArrayList<Semaphore> sem_li = new ArrayList<Semaphore>();
-            sem_li.add(first);
-            sem_li.add(second);
-            semaphore_map.put(new Integer(tag),sem_li);
-            first.V();
-            second.P();
-        }
-        else {
-            first=semaphore_map.get(new Integer(tag)).get(0);
-            second=semaphore_map.get(new Integer(tag)).get(1);
-            
-            if (first.complete){
-                first.r_val =value;
-                first.complete = false;
-                odd = true;
-                first.V();
-                second.P();
-            }
-            else{
-                second.r_val =value;
-                first.complete = true;
-                odd = false;
-                second.V();
-                first.P();
-            }
-            
-            
-        }
-        
-        int result;
-        if (odd) result = second.r_val;
-        else result = first.r_val; //exchange value
-        Machine.interrupt().restore(intStatus);
-        return result;
-   
-    }
-    private HashMap<Integer,ArrayList<Semaphore>> semaphore_map;
-    private HashMap<Integer,LinkedList<Integer>> val_map;
     public static void rendezTest1() {
         final Rendezvous r = new Rendezvous();
     
@@ -168,14 +136,20 @@ public class Rendezvous {
             public void run() {
                 int tag = 0;
                 int send = -1;
-    
+    	        int tag2 = 3;
+		int send2 = 33;
                 System.out.println ("Thread " + KThread.currentThread().getName() + " exchanging " + send);
                 int recv = r.exchange (tag, send);
-               // Lib.assertTrue (recv == 1, "Was expecting " + 1 + " but received " + recv);
-                System.out.println ("Thread " + KThread.currentThread().getName() + " received " + recv);
-            }
-            });
-        t1.setName("t1_tag0");
+		
+                System.out.println ("Thread " + KThread.currentThread().getName() + " exchanging (second time)" + send2);
+                int recv2 = r.exchange (tag2, send2);
+		// Lib.assertTrue (recv == 1, "Was expecting " + 1 + " but received " + recv);
+                
+                System.out.println ("Thread " + KThread.currentThread().getName() + " first received " + recv);
+		System.out.println ("Thread " + KThread.currentThread().getName() + " second received " + recv2);
+	    }
+	});
+        t1.setName("t1_tag_first_0_second_3");
         KThread t2 = new KThread( new Runnable () {
             public void run() {
                 int tag = 0;
@@ -225,10 +199,38 @@ public class Rendezvous {
 	});
 	t5.setName("t5_tag0");
 
+
+	KThread t6 = new KThread( new Runnable(){
+		public void run(){
+			int tag = 0;
+			int send = 44;
+                System.out.println ("Thread " + KThread.currentThread().getName() + " exchanging " + send);
+                int recv = r.exchange (tag, send);
+                //Lib.assertTrue (recv == 10, "Was expecting " + 10 + " but received " + recv);
+                System.out.println ("Thread " + KThread.currentThread().getName() + " received " + recv);
+		}
+	});
+	t6.setName("t6_tag0");
+
+	KThread t7 = new KThread( new Runnable(){
+		public void run(){
+			int tag = 0;
+			int send = 77;
+                System.out.println ("Thread " + KThread.currentThread().getName() + " exchanging " + send);
+                int recv = r.exchange (tag, send);
+                //Lib.assertTrue (recv == 10, "Was expecting " + 10 + " but received " + recv);
+                System.out.println ("Thread " + KThread.currentThread().getName() + " received " + recv);
+		}
+	});
+	t7.setName("t7_tag0");
+
+
+
+
 		
-	t1.fork(); t3.fork();t2.fork();t4.fork();//t5.fork();
+	t1.fork(); t3.fork();t2.fork();t4.fork();t5.fork();t6.fork();t7.fork();
         // assumes join is implemented correctly
-        t1.join(); t3.join();t2.join();t4.join();//t5.join();
+        t1.join(); t3.join();t2.join();t4.join();t5.join();t6.join();t7.join();
         }
     
         // Invoke Rendezvous.selfTest() from ThreadedKernel.selfTest()
