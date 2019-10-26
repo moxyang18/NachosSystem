@@ -27,7 +27,7 @@ public class Alarm {
 				timerInterrupt();
 			}
 		});
-		thread_list = new ArrayList<KThread>();
+		thread_list = new Vector<KThread>();
 		time_list = new ArrayList<Long> ();
 	}
 
@@ -93,8 +93,8 @@ public class Alarm {
 	 */
         public boolean cancel(KThread thread) {
 			boolean intStatus =Machine.interrupt().disable();
-			index = -1;
-			for (int i =0; i < threa_list.size();i++){
+			int index = -1;
+			for (int i =0; i < thread_list.size();i++){
 				if(thread_list.get(i) == thread){
 					index = i;
 					break;

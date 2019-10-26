@@ -100,7 +100,8 @@ public class Semaphore {
 	}
 
 	private int value;
-
+	public int r_val;
+	public boolean complete = true;
 	private ThreadQueue waitQueue = ThreadedKernel.scheduler
 			.newThreadQueue(false);
 }

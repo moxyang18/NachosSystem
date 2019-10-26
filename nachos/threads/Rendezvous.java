@@ -2,7 +2,7 @@ package nachos.threads;
 
 import java.util.HashMap;
 import java.util.LinkedList;
-
+import java.util.ArrayList;
 import nachos.machine.*;
 
 /**
@@ -13,7 +13,7 @@ public class Rendezvous {
      * Allocate a new Rendezvous.
      */
     public Rendezvous () {
-        this.tag_cvQuque_Map = new HashMap<Integer,LinkedList<Condition2>>(); 
+        this.semaphore_map = new HashMap<Integer,ArrayList<Semaphore>>(); 
     }
 
     /**
@@ -33,7 +33,7 @@ public class Rendezvous {
      * @param value the integer to exchange.
      */
     public int exchange (int tag, int value) {
-        boolean intStatus = Machine.interrupt();
+        boolean intStatus = Machine.interrupt().disable();
         Semaphore first; 
         Semaphore second;
         boolean odd;
@@ -44,7 +44,7 @@ public class Rendezvous {
             first.r_val =value;
             first.complete = false;
             odd = true;
-            sem_li = new ArrayList<Sempahore>();
+            ArrayList<Semaphore> sem_li = new ArrayList<Semaphore>();
             sem_li.add(first);
             sem_li.add(second);
             semaphore_map.put(new Integer(tag),sem_li);
@@ -75,12 +75,12 @@ public class Rendezvous {
         
         int result;
         if (odd) result = second.r_val;
-        else result = first.val; //exchange value
+        else result = first.r_val; //exchange value
         Machine.interrupt().restore(intStatus);
         return result;
    
     }
-    private HashMap<Integer,ArrayList<Semaphore>> semaphore_Map;
+    private HashMap<Integer,ArrayList<Semaphore>> semaphore_map;
 
     public static void rendezTest1() {
         final Rendezvous r = new Rendezvous();
