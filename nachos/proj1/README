@@ -2,8 +2,30 @@ Team Members: Yanzhi Ding (A14109703),
 			  Moxuan Yang (A13916673), 
 			  Meena Kaliswamy (A12983349);
 
-Code Description:
+------------
+In Part 1, we implemented the Alarm class. We created a thread_list and a time_list to keep track of the threads and the corresponding time each thread calls waitUntil(). To realize the functionality of waitUntil(long x), aka. to make the thread wait for at least x clock time to be put back on the ready queue, we modified the method timerInterrupt() to iterate through each time in the time_list. If the current time matches any of the time, make the thread on the corresponding index in the thread_list call ready(), and then flag the time to be a negative value to avoid repeating. In waitUntil(long x) we populate the thread_list by adding each thread that calls it, and populate the time_list by adding the future clock time (current time + x) that the thread stops waiting.
 
-Test Description:
+To test this part, we pass in as waitUntil’s argument different durations such as 501, 1501, 3001, 14440 and print out the time difference after the thread calls waitUntil on these various durations to make sure the time differences are as expected, slightly greater than durations.
 
-Individual Contribution:
+—————————————-
+In Part 2, we implemented KThread class’s method join(). If current thread is A, in which we call B.join(), it will first put B to be ready and then wake up A after B finishes. 
+
+To test this function, we verified different cases: If A calls join on B and B is still executing, A waits; if B already finishes, A does not block. Also we made sure that a thread cannot call join on itself and cannot call join more than once on a thread. In addition, we test edge cases such as that one thread can join with multiple other threads in a row and independent pairs of threads can join with each other.
+
+—————————————-
+In Part 3, we understand and modified the logic in Condition class to fit in the Condition2 class without using Semophore. We created the private fields that are in Semophore such as the waitQueue in Condition2 to make its methods function just like those of Condition class.
+
+To test the functionality, we implemented tests that verify sleep blocks the calling thread, wake wakes up at most one thread and wakeAll wakes up all waiting threads. We also write tests to make sure that Nachos asserts if a thread calls any of the methods without holding the clock.
+
+—————————————-
+In Part 4, first we implemented the method cancel in Alarm class that cancel the timer set for the thread and return true; if there is no timer set for the thread return false. Based on our implementation for this class, in cancel we deleted the target thread’s time and itself from the time_list and thread_list once it is found. Then in sleepFor, we call waitUntil on alarm to make it wait for that amount of time.
+
+To test the functionality, we implemented tests that test the functionality of sleepFor to guarantee a thread calling sleepFor(x) will timeout and return after x ticks when no other thread calls wake it up during x ticks. Otherwise a thread will wake up and return if wake is called before timeout expires. We also check whether sleepFor works if multiple threads are present.
+
+—————————————- 
+In Part 5, we created HashMaps with tag as the key, values, lock and condition as the value. Then we implemented exchange() by writing different cases: if there has no value to be exchanged, create a linked list containing that integer value and call sleep on that current thread. Once it is woken up, return the value that is exchanged to it. For the other case, since there is a value waiting to exchange, wake up the thread that wants to exchange with the current thread and return its value.
+
+To test the functionality of Rendezvous, we created a Rendezvous object and call exchange for two threads of the same tag, to see whether the return value of exchange in each thread matches the the other’s value. Then we added more tests to check whether more than 2 threads with the same tag successfully exchange values in order, and the threads of different tags won’t ever exchange value.
+
+—————————————-
+Contribution: For this assignments,the three of us worked together, assigned roles of the driver, the coder, and the test writer and switched our roles for different part.
