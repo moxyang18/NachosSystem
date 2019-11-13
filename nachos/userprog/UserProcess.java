@@ -20,6 +20,9 @@ import java.io.EOFException;
  * @see nachos.network.NetProcess
  */
 public class UserProcess {
+	private OpenFile[] fileTable = new OpenFile[16];
+
+
 	/**
 	 * Allocate a new process.
 	 */
@@ -28,6 +31,11 @@ public class UserProcess {
 		pageTable = new TranslationEntry[numPhysPages];
 		for (int i = 0; i < numPhysPages; i++)
 			pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
+		for (int i=0; i<16; i++){
+			fileTable[i] = null;
+		}
+		fileTable[0] = UserKernel.console.openForReading();
+		fileTable[1] = UserKernel.console.openForWriting();
 	}
 
 	/**
@@ -446,6 +454,22 @@ public class UserProcess {
 			return handleHalt();
 		case syscallExit:
 			return handleExit(a0);
+		
+		case syscallCreate:
+			return handleCreate(a0);
+
+		case syscallOpen:
+			return handleOpen(a0);
+
+		case syscallRead:
+			return handleRead(a0,a1,a2);
+		case syscallWrite:
+			return handleWrite(a0,a1,a2);
+		case syscallClose:
+			return handleClose(a0);
+		case syscallUnlink:
+			return handleUnlink(a0);
+
 
 		default:
 			Lib.debug(dbgProcess, "Unknown syscall " + syscall);
@@ -480,6 +504,145 @@ public class UserProcess {
 					+ Processor.exceptionNames[cause]);
 			Lib.assertNotReached("Unexpected exception");
 		}
+	}
+
+
+	public int handleCreate(int fn){
+		String filename = readVirtualMemoryString(fn, 256);
+		if(filename == null ) return -1;
+
+		OpenFile openFile = ThreadedKernel.fileSystem.open(filename, true); //truncate????
+		if (openFile == null) return -1;
+		for (int i=2; i<16 ;i++){ //never refer stream
+			if (fileTable[i]==null){
+				fileTable[i]= openFile;
+				return i;
+			}
+		}
+		return -1; // table is full
+	}
+
+
+	public int handleOpen(int fn){
+		String filename = readVirtualMemoryString(fn, 256);
+		if(filename == null ) return -1;
+
+		OpenFile openFile = ThreadedKernel.fileSystem.open(filename, false); //truncate????
+		if (openFile == null) return -1;
+		for (int i=2; i<16 ;i++){ //never refer stream
+			if (fileTable[i]==null){
+				fileTable[i]= openFile;
+				return i;
+			}
+		}
+		return -1; // table is full
+	}
+
+	public int handleClose(int fd){
+		//Lib.assertTrue(fd >= 0 || fd <= 15);
+		//Lib.assertTrue(fileTable[fd] != null);
+		if (fd>15 || fd <0 || fileTable[fd]==null)
+			return -1;
+		
+		else{
+			fileTable[fd].close();
+			fileTable[fd] = null;
+			return 0;
+
+		}
+	}
+
+	public int handleUnlink(int fn){
+		String filename = readVirtualMemoryString(fn, 256);
+		if(filename == null ) return -1;
+		else{
+
+			if(ThreadedKernel.fileSystem.remove(filename))
+				return 0;
+			else return -1;
+
+		}
+	}
+
+
+	public int handleWrite(int fd, int addr, int length){
+		if(fd<0 || fd >15 || fileTable[fd] == null ){
+			return -1;
+		}
+
+
+		if(length <= pageSize){
+			byte[] buffer = new byte[length];
+			readVirtualMemory(addr,buffer,0, length);
+			return fileTable[fd].write(addr,buffer,0,length);
+
+		}
+		else{
+			int count = 0;
+			int pos = 0;
+			int n = 0;
+			byte[] buffer = new byte[pageSize];
+			while (pos < length){
+				if(pos +pageSize <= length){
+					readVirtualMemory(addr,buffer,pos,pageSize);
+					n = fileTable[fd].write(addr,buffer,pos,pageSize)
+					if (n == -1) return n; //indicate fault or disk is full
+					pos += pageSize;
+					count +=n;
+				}
+				else{
+					readVirtualMemory(addr,buffer,pos,length-pos);
+					n = fileTable[fd].write(addr,buffer,pos,length-pos)
+					if(n == -1) return n; //indicate fault or disk is full
+					pos = length;
+					count += n;
+				}
+			}
+			if (count != length) return -1; // not writting correct number of bytes
+			else return count;
+		}
+
+	}
+
+	public int handleRead(int fd, int addr, int length){
+		if(fd<0 || fd >15 || fileTable[fd] == null ){
+			return -1;
+		}
+
+
+		if(length <= pageSize){
+			byte[] buffer = new byte[length];
+			int n = fileTable[fd].read(addr,buffer,0,length);
+			if (n == -1) return -1;
+			writeVirtualMemory(addr,buffer,0, n);
+			return n;
+
+		}
+		else{
+			int count = 0;
+			int pos = 0;
+			int n = 0;
+			byte[] buffer = new byte[pageSize];
+			while (pos < length || n != 0){
+				if(pos +pageSize <= length){
+					n = fileTable[fd].read(addr,buffer,pos,pageSize)
+					if (n == -1) return n; //indicate fault or disk is full
+					writeVirtualMemory(addr,buffer,pos, n);
+					pos += pageSize;
+					count +=n;
+				}
+				else{
+					n = fileTable[fd].write(addr,buffer,pos,length-pos)
+					if(n == -1) return n; //indicate fault or disk is full
+					writeVirtualMemory(addr,buffer,pos, length-pos);
+					pos = length;
+					count += n;
+				}
+			}
+			if (count > length) return -1; // not reading correct number of bytes, actual > requested
+			else return count;
+		}
+
 	}
 
 	/** The program being run by this process. */

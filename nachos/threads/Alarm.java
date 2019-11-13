@@ -73,13 +73,13 @@ public class Alarm {
 	 */
 	public void waitUntil(long x) {
 		// for now, cheat just to get something working (busy waiting is bad)
+		if (x <0) return;
 		boolean intStatus =Machine.interrupt().disable();
  		thread_list.add(KThread.currentThread());
                 time_list.add(new Long(Machine.timer().getTime()+x));	
 		KThread.sleep();
 		Machine.interrupt().restore(intStatus);
 
-		Machine.interrupt().restore(intStatus);
 	}
 
         /**

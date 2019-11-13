@@ -293,7 +293,7 @@ public class KThread {
 		Lib.debug(dbgThread, "Joining to thread: " + toString());
 
 		Lib.assertTrue(this != currentThread);
-		
+		Lib.assertTrue(this.toBeWakeUpAfter ==null);
 	
 		boolean status_1 = Machine.interrupt().disable();
 		//cuur is A. on A calls B.join()
@@ -301,7 +301,7 @@ public class KThread {
 			return;
 		}
 		else {
-			Lib.assertTrue(this.toBeWakeUpAfter ==null);
+			
 			this.toBeWakeUpAfter = currentThread();//Set B's tBWUA to be A
 	
 			sleep(); //A sleep
