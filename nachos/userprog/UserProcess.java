@@ -565,80 +565,140 @@ public class UserProcess {
 	}
 
 
+	/* This function reads from the buffer and writes to the file in fd table*/
 	public int handleWrite(int fd, int addr, int length){
-		if(fd<0 || fd >15 || fileTable[fd] == null ){
+		byte[] memory = Machine.processor().getMemory();
+
+		// for now, just assume that virtual addresses equal physical addresses
+		if (addr < 0 || addr >= memory.length||addr +length >= memory.length)
+			return -1;
+
+	if(fd<0 || fd >15 || fileTable[fd] == null ){
+//			System.out.println("bp 0");
+	
 			return -1;
 		}
 
-
+		if(length<0) return -1;
+//		System.out.println("bp 1");
 		if(length <= pageSize){
+//			System.out.println("bp 2");
 			byte[] buffer = new byte[length];
-			readVirtualMemory(addr,buffer,0, length);
-			return fileTable[fd].write(addr,buffer,0,length);
-
+//			readVirtualMemory(addr,buffer,0, length);
+			int valid_read = readVirtualMemory(addr,buffer,0, length);
+		
+			//return fileTable[fd].write(0,buffer,0,length);
+			return fileTable[fd].write(buffer,0,length);
+			
 		}
 		else{
+//			System.out.println("bp 3");
+//			int vm_addr = addr;
 			int count = 0;
 			int pos = 0;
 			int n = 0;
 			byte[] buffer = new byte[pageSize];
 			while (pos < length){
+				// calculate amount left 
+				// min( _ , _ )i
+				//
+				// initialzie buffer of size minValue
+			
 				if(pos +pageSize <= length){
-					readVirtualMemory(addr,buffer,pos,pageSize);
-					n = fileTable[fd].write(addr,buffer,pos,pageSize)
+//					System.out.println(pageSize);
+					// read from virtual memory specified by addr to buffer 
+					// with offset pos, reading in total pageSize bytes
+	
+//					readVirtualMemory(addr,buffer,0,pageSize);
+					int valid_read = readVirtualMemory(addr,buffer,0, pageSize);
+					
+	//				for (int i = 0; i < 1024; i++) {}
+						//System.out.println((char)buffer[i]);
+					
+					// write from the buffer to the file specified by fd
+					n = fileTable[fd].write(buffer,0,pageSize);
+	
+					// advance addr to be read in VM by pageSize
+					addr += pageSize;
+	
 					if (n == -1) return n; //indicate fault or disk is full
 					pos += pageSize;
 					count +=n;
 				}
 				else{
-					readVirtualMemory(addr,buffer,pos,length-pos);
-					n = fileTable[fd].write(addr,buffer,pos,length-pos)
+//					System.out.println("bp 5");
+//					readVirtualMemory(addr,buffer,0,length-pos);
+					int valid_read = readVirtualMemory(addr,buffer,0, length-pos);
+	
+		
+
+					n = fileTable[fd].write(buffer,0,length-pos);
 					if(n == -1) return n; //indicate fault or disk is full
 					pos = length;
 					count += n;
 				}
+			
 			}
-			if (count != length) return -1; // not writting correct number of bytes
+			if (count != length) return -1; // not writing correct number of bytes
 			else return count;
 		}
 
 	}
 
+	/* This function reads from a file into the buffer specified by addr.
+	 * */
 	public int handleRead(int fd, int addr, int length){
+		byte[] memory = Machine.processor().getMemory();
+
+		// for now, just assume that virtual addresses equal physical addresses
+		if (addr < 0 || addr >= memory.length)
+			return -1;
+
 		if(fd<0 || fd >15 || fileTable[fd] == null ){
 			return -1;
 		}
 
+		if(length<0) return -1;
 
 		if(length <= pageSize){
 			byte[] buffer = new byte[length];
-			int n = fileTable[fd].read(addr,buffer,0,length);
+			int n = fileTable[fd].read(buffer, 0, length);
+//			int n = fileTable[fd].read(0,buffer,0,length);
 			if (n == -1) return -1;
 			writeVirtualMemory(addr,buffer,0, n);
 			return n;
 
 		}
 		else{
+//	int vm_addr = addr;
 			int count = 0;
 			int pos = 0;
 			int n = 0;
 			byte[] buffer = new byte[pageSize];
 			while (pos < length || n != 0){
 				if(pos +pageSize <= length){
-					n = fileTable[fd].read(addr,buffer,pos,pageSize)
+
+//					System.out.println(addr);
+					n = fileTable[fd].read(buffer, 0, pageSize);
+//					System.out.println(n);
+				//	n = fileTable[fd].read(pos,buffer,0,pageSize);
 					if (n == -1) return n; //indicate fault or disk is full
-					writeVirtualMemory(addr,buffer,pos, n);
+					writeVirtualMemory(addr,buffer, 0, n);  ////////pos->0
+					addr += pageSize;
 					pos += pageSize;
 					count +=n;
 				}
 				else{
-					n = fileTable[fd].write(addr,buffer,pos,length-pos)
+					n = fileTable[fd].read(buffer, 0, length-pos);
+				//	n = fileTable[fd].write(pos,buffer,0,length-pos);
 					if(n == -1) return n; //indicate fault or disk is full
-					writeVirtualMemory(addr,buffer,pos, length-pos);
+					writeVirtualMemory(addr,buffer, 0, length-pos); //// pos->0
+					addr += length-pos;
 					pos = length;
 					count += n;
 				}
 			}
+//			System.out.println(count);
 			if (count > length) return -1; // not reading correct number of bytes, actual > requested
 			else return count;
 		}
