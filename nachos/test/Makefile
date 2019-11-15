@@ -30,7 +30,7 @@ STDLIB_O = start.o stdio.o stdlib.o
 LIB = assert atoi printf readline stdio strncmp strcat strcmp strcpy strlen memcpy memset rand
 NLIB = libnachos.a
 
-TARGETS = halt sh matmult sort echo cat cp mv rm snake dungeon-obf dungeon-gen dungeon write1 write4 write10
+TARGETS = halt sh matmult sort echo cat cp mv rm
 
 .SECONDARY: $(patsubst %.c,%.o,$(wildcard *.c))
 
