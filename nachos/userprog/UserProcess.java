@@ -4,7 +4,7 @@ import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
 import nachos.vm.*;
-
+import java.util.LinkedList;
 import java.io.EOFException;
 
 /**
@@ -27,15 +27,26 @@ public class UserProcess {
 	 * Allocate a new process.
 	 */
 	public UserProcess() {
-		int numPhysPages = Machine.processor().getNumPhysPages();
-		pageTable = new TranslationEntry[numPhysPages];
-		for (int i = 0; i < numPhysPages; i++)
+
+		//concurrency ???
+
+
+		//int numPhysPages = Machine.processor().getNumPhysPages();
+		
+		pageTable = new TranslationEntry[numPages];
+		for (int i = 0; i < numPages; i++)
 			pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
 		for (int i=0; i<16; i++){
 			fileTable[i] = null;
 		}
 		fileTable[0] = UserKernel.console.openForReading();
 		fileTable[1] = UserKernel.console.openForWriting();
+
+
+		currPages = new LinkedList<Integer>();
+
+		lock = new Lock();
+        cv = new Condition(lock);
 	}
 
 	/**
@@ -155,14 +166,72 @@ public class UserProcess {
 
 		byte[] memory = Machine.processor().getMemory();
 
-		// for now, just assume that virtual addresses equal physical addresses
-		if (vaddr < 0 || vaddr >= memory.length)
+		
+		if (vaddr < 0 )//|| vaddr >= memory.length
 			return 0;
 
-		int amount = Math.min(length, memory.length - vaddr);
-		System.arraycopy(memory, vaddr, data, offset, amount);
 
-		return amount;
+		int byte_array_offset = offset;
+		int amount = 0;
+		int phy_addr = -1;
+		
+		int vpn = Processor.pageFromAddress(vaddr);
+		int addr_offset = Processor.offsetFromAddress(vaddr);
+		int needsToRead = length;
+		int amount_sum = 0;
+		boolean noError = true;
+
+		//data in one page, simple case
+		if (addr_offset + needsToRead < pageSize){
+			
+			//do translation and get physical memory address
+			for(int i = 0; i <pageTable.length; i++){
+				if(pageTable[i].vpn == vpn &&pageTable[i].valid){
+					phy_addr = addr_offset + pageTable[i].ppn*pageSize;
+					break;
+				}
+				if(i == pageTable.length){
+					noError = false;
+				}
+				
+			}
+			//stop if error occur
+			if(!noError || phy_addr <0 || phy_addr > memory.length){
+				return amount_sum;
+			}
+
+			amount_sum = needsToRead;
+			System.arraycopy(memory, phy_addr, data, offset, needsToRead);
+		}
+
+		//else data on mulitiple phy pages, (though continuous on virtual address)
+		else{
+			while(needsToRead >0 && noError){
+				//do translation and get physical memory address
+				for(int i = 0; i <pageTable.length; i++){
+					if(pageTable[i].vpn == vpn &&pageTable[i].valid){
+						phy_addr = addr_offset + pageTable[i].ppn*pageSize;
+						break;
+					}
+					if (i == pageTable.length){
+						noError = false;
+					}
+						
+				}
+				if(!noError || phy_addr <0 || phy_addr > memory.length){
+					return amount_sum;
+				}
+				++vpn;
+
+				amount = Math.min(needsToRead, pageSize);
+				System.arraycopy(memory, phy_addr, data, offset, amount);
+				amount_sum += amount;
+				byte_array_offset += amount;
+				needsToRead -= amount;
+			}
+		}
+	
+		return amount_sum;
 	}
 
 	/**
@@ -198,13 +267,77 @@ public class UserProcess {
 		byte[] memory = Machine.processor().getMemory();
 
 		// for now, just assume that virtual addresses equal physical addresses
-		if (vaddr < 0 || vaddr >= memory.length)
+		if (vaddr < 0 ) //|| vaddr >= memory.length
 			return 0;
 
-		int amount = Math.min(length, memory.length - vaddr);
-		System.arraycopy(data, offset, memory, vaddr, amount);
 
-		return amount;
+
+		int byte_array_offset = offset;
+		int amount = 0;
+		int phy_addr = -1;
+		
+		int vpn = Processor.pageFromAddress(vaddr);
+		int addr_offset = Processor.offsetFromAddress(vaddr);
+		int needsToWrite = length;
+		int amount_sum = 0;
+		boolean noError = true;
+
+
+		//data in one page, simple case
+		if (addr_offset + needsToWrite < pageSize){
+			
+			//do translation and get physical memory address
+			for(int i = 0; i <pageTable.length; i++){
+				if(pageTable[i].vpn == vpn &&pageTable[i].valid){
+					phy_addr = addr_offset + pageTable[i].ppn*pageSize;
+					break;
+				}
+				if(i == pageTable.length){
+					noError = false;
+				}
+				
+			}
+			//stop if error occur
+			if(!noError || phy_addr <0 || phy_addr > memory.length){
+				return amount_sum;
+			}
+
+			//write and update
+			amount_sum = needsToWrite;
+			System.arraycopy(data, offset, memory, phy_addr, needsToWrite);
+		}
+
+		//else data on mulitiple phy pages, (though continuous on virtual address)
+		else{
+			while(needsToWrite >0 && noError){
+				//do translation and get physical memory address
+				for(int i = 0; i <pageTable.length; i++){
+					if(pageTable[i].vpn == vpn &&pageTable[i].valid){
+						phy_addr = addr_offset + pageTable[i].ppn*pageSize;
+						break;
+					}
+					if (i == pageTable.length){
+						noError = false;
+					}
+						
+				}
+				//stop when error occur
+				if(!noError || phy_addr <0 || phy_addr > memory.length){
+					return amount_sum;
+				}
+
+				//write and update
+				++vpn;
+				
+				amount = Math.min(needsToWrite, pageSize);
+				System.arraycopy(data, byte_array_offset, memory, phy_addr, amount);
+				amount_sum += amount;
+				byte_array_offset += amount;
+				needsToWrite -= amount;
+			}
+		}
+	
+		return amount_sum;
 	}
 
 	/**
@@ -302,11 +435,20 @@ public class UserProcess {
 	 * @return <tt>true</tt> if the sections were successfully loaded.
 	 */
 	protected boolean loadSections() {
-		if (numPages > Machine.processor().getNumPhysPages()) {
+		//concurrency
+
+		UserKernel.lock1.acquire();
+		if (numPages > UserKernel.freePages.size()) {
 			coff.close();
 			Lib.debug(dbgProcess, "\tinsufficient physical memory");
 			return false;
 		}
+		int entry_count = 0;
+		
+
+		
+		pageTable = new TranslationEntry[numPages];
+
 
 		// load sections
 		for (int s = 0; s < coff.getNumSections(); s++) {
@@ -316,13 +458,38 @@ public class UserProcess {
 					+ " section (" + section.getLength() + " pages)");
 
 			for (int i = 0; i < section.getLength(); i++) {
-				int vpn = section.getFirstVPN() + i;
+				
+				
+				int vpn = section.getFirstVPN() + i; //HERE is the part i'm not so sure. each section starts with first vpn of 0, as load() said, it will increase though but diff sections would have same starting vpn
+				int ppn = UserKernel.freePages.removeFirst();
+				
+				currPages.add(ppn);
+				System.out.println("Allocating page with physical frame number " +ppn + " to process ");
+				section.loadPage(i, ppn);
 
-				// for now, just assume virtual addresses=physical addresses
-				section.loadPage(i, vpn);
+				//should the 1st arg be vpn or 
+				pageTable[entry_count] = new TranslationEntry(vpn, ppn, true, section.isReadOnly(), false, false);
+				++entry_count;
 			}
 		}
 
+
+		// NOT SURE what's the start of stack and etc vpn
+		//stack and etc.
+		//numPages is assigned by load() and it is more than {sections.length * numSections}
+			for(int i = 0; i < numPages - entry_count; i++){
+				int ppn = UserKernel.freePages.removeLast();
+				currPages.add(ppn);
+				System.out.println("Allocating page with physical frame number " +ppn + " to process ");
+
+				//should we let 1st arg be i or entry_count or related to last vpn from above (section) part?
+				pageTable[entry_count] = new TranslationEntry(entry_count, ppn, true, false, false, false);
+				++entry_count;
+			} 
+
+
+
+		UserKernel.lock1.release();
 		return true;
 	}
 
@@ -330,6 +497,20 @@ public class UserProcess {
 	 * Release any resources allocated by <tt>loadSections()</tt>.
 	 */
 	protected void unloadSections() {
+		UserKernel.lock1.acquire();
+
+		while(currPages.isEmpty() == false){
+			//remove and free all pages
+            UserKernel.freePages.add(currPages.removeLast()); //just linked list of ints
+        }
+
+
+		//debug messages
+		System.out.println("previously supposed to use: " + currPages.size()+" pages ");
+
+		System.out.println("freed " + UserKernel.freePages.size()+ " pages ");
+		UserKernel.lock1.release();
+
 	}
 
 	/**
@@ -704,6 +885,10 @@ public class UserProcess {
 		}
 
 	}
+	private LinkedList<Integer> currPages;
+	
+	public Condition cv;
+	public Lock lock;
 
 	/** The program being run by this process. */
 	protected Coff coff;
