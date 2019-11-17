@@ -36,6 +36,7 @@ public class UserKernel extends ThreadedKernel {
 		}
 
 		lock1 = new Lock();
+		lock2 = new Lock();
 
 		Machine.processor().setExceptionHandler(new Runnable() {
 			public void run() {
@@ -144,5 +145,9 @@ public class UserKernel extends ThreadedKernel {
 	public static LinkedList<Integer> free_physical_pages;
 
 	public static Lock lock1;
+
+	public static Lock lock2;
+
+	public static int processIDcounter = 0;
 
 }

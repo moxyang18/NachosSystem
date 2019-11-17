@@ -6,8 +6,10 @@ import nachos.userprog.*;
 import nachos.vm.*;
 
 import java.io.EOFException;
-import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.Set;
+import java.util.HashMap;
+import java.util.Hashtable;
 
 //import javax.annotation.processing.Processor;
 
@@ -26,11 +28,19 @@ import java.util.LinkedList;
 public class UserProcess {
 	// this is the file table of the file descriptors and the corresponding file
 	private OpenFile[] fileTable = new OpenFile[16];
+	public Lock lock;
+	public Condition cv;
+	public int pid;
+	protected Hashtable<Integer,UserProcess> children = new Hashtable<Integer, UserProcess>();
+	public Integer exitStatus;
+	protected UserProcess parent;
 
 	/**
 	 * Allocate a new process.
 	 */
 	public UserProcess() {
+		UserKernel.lock2.acquire();
+
 		int numPhysPages = Machine.processor().getNumPhysPages();
 		pageTable = new TranslationEntry[numPhysPages];
 		for (int i = 0; i < numPhysPages; i++)
@@ -41,6 +51,12 @@ public class UserProcess {
 		loaded_pages = new LinkedList<Integer>();
 		fileTable[0] = UserKernel.console.openForReading();
 		fileTable[1] = UserKernel.console.openForWriting();
+		this.pid = UserKernel.processIDcounter++;
+		
+		lock = new Lock();
+		cv = new Condition(lock);
+		exitStatus = null;
+		UserKernel.lock2.release();
 	}
 
 	/**
@@ -161,10 +177,6 @@ public class UserProcess {
 		byte[] memory = Machine.processor().getMemory();
 
 		int numPhysPages = Machine.processor().getNumPhysPages();
-/*		// for now, just assume that virtual addresses equal physical addresses
-		if (vaddr < 0 || vaddr >= memory.length)
-			return 0;
-*/
 
 		/* find the physical address using the pagetable and vaddr */
 		
@@ -191,9 +203,6 @@ public class UserProcess {
 		if(cur_ppn_addr>=memory.length) return 0;
 		int amount = Math.min(length, pageSize-cur_vpn_offset);
 
-/*		int amount = Math.min(length, memory.length - vaddr);
-		System.arraycopy(memory, vaddr, data, offset, amount);
-*/
 
 		System.arraycopy(memory, cur_ppn_addr, data, offset, amount);
 		// update the length left to be read
@@ -270,16 +279,6 @@ public class UserProcess {
 		byte[] memory = Machine.processor().getMemory();
 
 		int numPhysPages = Machine.processor().getNumPhysPages();
-/*		// for now, just assume that virtual addresses equal physical addresses
-		if (vaddr < 0 || vaddr >= memory.length)
-			return 0;
-
-		int amount = Math.min(length, memory.length - vaddr);
-		System.arraycopy(data, offset, memory, vaddr, amount);
-
-		return amount;
-
-*/
 
 		/* Extract the page number component and the offset from a 32-bit address.*/
 		int cur_vpn = Processor.pageFromAddress(vaddr);
@@ -304,9 +303,6 @@ public class UserProcess {
 		if(cur_ppn_addr>=memory.length) return 0;
 		int amount = Math.min(length, pageSize-cur_vpn_offset);
 
-/*		int amount = Math.min(length, memory.length - vaddr);
-		System.arraycopy(memory, vaddr, data, offset, amount);
-*/
 
 		System.arraycopy(data, offset, memory, cur_ppn_addr, amount);
 		// update the length left to be read
@@ -469,11 +465,9 @@ public class UserProcess {
 				int vpn = section.getFirstVPN() + i;
 				section_vpn = vpn;
 				// assign the page frame number of the physical page
-//				System.out.println("the size of physical pages is:" + UserKernel.free_physical_pages.size());
+				//System.out.println("the size of physical pages is:" + UserKernel.free_physical_pages.size());
 				int ppn = UserKernel.free_physical_pages.removeLast();
 
-				// for now, just assume virtual addresses=physical addresses (not true anymore)
-//				section.loadPage(i, vpn);
 
 				// add the page to the loaded list
 				loaded_pages.add(ppn);
@@ -493,7 +487,7 @@ public class UserProcess {
 		// create entries for the rest of the pages
 		for (int k = num_assigned+1; k<numPhysPages; k++) {
 			section_vpn++;
-//			System.out.println("the size of physical pages is after :" + UserKernel.free_physical_pages.size());
+			//System.out.println("the size of physical pages is after :" + UserKernel.free_physical_pages.size());
 			int ppn = UserKernel.free_physical_pages.removeLast();
 			// add the page to the loaded list
 			loaded_pages.add(ppn);
@@ -549,20 +543,69 @@ public class UserProcess {
 		return 0;
 	}
 
+
+
+
+
+
+
+	
 	/**
 	 * Handle the exit() system call.
 	 */
+	
 	private int handleExit(int status) {
 	        // Do not remove this call to the autoGrader...
 		Machine.autoGrader().finishingCurrentProcess(status);
 		// ...and leave it as the top of handleExit so that we
 		// can grade your implementation.
 
+
+		exitStatus = status;
+
+		//clean up
+		for(int i = 0; i < 16; i++){
+			if(fileTable[i] != null){
+				fileTable[i].close();
+				fileTable[i] = null;
+			}
+		  }
+		unloadSections();
+		coff.close();
+		Set<Integer> keys = children.keySet();
+
+        for(Integer c_pid: keys){
+		
+			UserProcess c =children.get(c_pid);
+			c.lock.acquire();
+			c.parent = null;
+			c.lock.release();;
+        }
+
+		if(parent != null){
+			parent.lock.acquire();
+			parent.children.remove(this.pid);
+			parent.lock.release();
+		}
+
+		UserKernel.lock2.acquire();
+		if(UserKernel.processIDcounter == 1){
+			UserKernel.processIDcounter--;
+			UserKernel.lock2.release();
+			Kernel.kernel.terminate();
+
+		}
+		else{
+			UserKernel.processIDcounter--;
+			UserKernel.lock2.release();
+			KThread.finish();
+		}
+			
 		Lib.debug(dbgProcess, "UserProcess.handleExit (" + status + ")");
 		// for now, unconditionally terminate with just one process
 		Kernel.kernel.terminate();
 
-		return 0;
+		return status;
 	}
 
 	private static final int syscallHalt = 0, syscallExit = 1, syscallExec = 2,
@@ -643,7 +686,6 @@ public class UserProcess {
 
 		case syscallOpen:
 			return handleOpen(a0);
-
 		case syscallRead:
 			return handleRead(a0,a1,a2);
 		case syscallWrite:
@@ -755,18 +797,18 @@ public class UserProcess {
 		if (addr < 0 || addr >= memory.length||addr +length >= memory.length)
 			return -1;
 
-	if(fd<0 || fd >15 || fileTable[fd] == null ){
-//			System.out.println("bp 0");
+		if(fd<0 || fd >15 || fileTable[fd] == null ){
+			//System.out.println("bp 0");
 	
 			return -1;
 		}
 
 		if(length<0) return -1;
-//		System.out.println("bp 1");
+
 		if(length <= pageSize){
-//			System.out.println("bp 2");
+
 			byte[] buffer = new byte[length];
-//			readVirtualMemory(addr,buffer,0, length);
+			//readVirtualMemory(addr,buffer,0, length);
 			int valid_read = readVirtualMemory(addr,buffer,0, length);
 		
 			//return fileTable[fd].write(0,buffer,0,length);
@@ -774,8 +816,7 @@ public class UserProcess {
 			
 		}
 		else{
-//			System.out.println("bp 3");
-//			int vm_addr = addr;
+
 			int count = 0;
 			int pos = 0;
 			int n = 0;
@@ -787,14 +828,14 @@ public class UserProcess {
 				// initialzie buffer of size minValue
 			
 				if(pos +pageSize <= length){
-//					System.out.println(pageSize);
+					//System.out.println(pageSize);
 					// read from virtual memory specified by addr to buffer 
 					// with offset pos, reading in total pageSize bytes
 	
-//					readVirtualMemory(addr,buffer,0,pageSize);
+					//readVirtualMemory(addr,buffer,0,pageSize);
 					int valid_read = readVirtualMemory(addr,buffer,0, pageSize);
 					
-	//				for (int i = 0; i < 1024; i++) {}
+					//for (int i = 0; i < 1024; i++) {}
 						//System.out.println((char)buffer[i]);
 					
 					// write from the buffer to the file specified by fd
@@ -808,8 +849,8 @@ public class UserProcess {
 					count +=n;
 				}
 				else{
-//					System.out.println("bp 5");
-//					readVirtualMemory(addr,buffer,0,length-pos);
+					//System.out.println("bp 5");
+					//readVirtualMemory(addr,buffer,0,length-pos);
 					int valid_read = readVirtualMemory(addr,buffer,0, length-pos);
 	
 		
