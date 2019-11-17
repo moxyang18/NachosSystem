@@ -547,7 +547,51 @@ public class UserProcess {
 
 
 
+	private int handleExec(int file, int argc, int argv) {
+		
+		
+		String filename = readVirtualMemoryString(file,256);
+		
+		if(filename == null || argc < 0) {
+			return -1;
+		}
+		
+		//Create string array to represent the "args"
+		String[] args = new String[argc];
+		
+		//The buffer to read virtual memory into
+		byte[] buffer = new byte[4];
 
+		//allocating program arguments to args[]
+		for (int i = 0; i < argc; i++) 
+		{
+			int read = readVirtualMemory(argv+i*4, buffer);
+			if(read != buffer.length)
+				return -1;
+            
+			args[i] = readVirtualMemoryString(Lib.bytesToInt(buffer, 0),256);
+			
+			//error occur, return -1
+			if (args[i] == null){
+				
+				return -1;
+			}
+		}
+		
+		UserProcess child = newUserProcess();
+		
+		children.put(child.pid, child);
+		child.parent = this;
+		boolean succ = child.execute(filename, args);
+		
+
+		if(succ) {
+			return child.pid;
+		}
+
+		
+		return -1;
+	}
 
 	
 	/**
@@ -607,6 +651,47 @@ public class UserProcess {
 
 		return status;
 	}
+
+	private int handleJoin(int processID, int status){
+
+		if(!children.containsKey(processID)){
+
+		  return -1;
+		}
+
+		UserProcess child = children.get(processID);
+		
+	
+		child.lock.acquire();
+		
+		
+		Integer childStatus = child.exitStatus;
+		if (childStatus == null)
+		{
+			lock.acquire();
+			child.lock.release();
+			cv.sleep();
+			lock.release();
+			
+			child.lock.acquire();
+			childStatus = child.exitStatus;
+
+		}
+		child.lock.release();
+	
+		children.remove(processID);// can't be joined later	
+		
+		byte[] statusAry = Lib.bytesFromInt(childStatus.intValue());
+		writeVirtualMemory(status, statusAry);
+		
+		if (childStatus.intValue() == 0)
+			return 1;
+		else
+			return 0;
+	  }
+
+
+
 
 	private static final int syscallHalt = 0, syscallExit = 1, syscallExec = 2,
 			syscallJoin = 3, syscallCreate = 4, syscallOpen = 5,
@@ -680,10 +765,12 @@ public class UserProcess {
 			return handleHalt();
 		case syscallExit:
 			return handleExit(a0);
-		
+		case syscallJoin:
+			return handleJoin(a0, a1);
 		case syscallCreate:
 			return handleCreate(a0);
-
+		case syscallExec:
+			return handleExec(a0,a1,a2);
 		case syscallOpen:
 			return handleOpen(a0);
 		case syscallRead:
