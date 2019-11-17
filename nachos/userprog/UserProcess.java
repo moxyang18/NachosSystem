@@ -566,7 +566,7 @@ public class UserProcess {
 		//allocating program arguments to args[]
 		for (int i = 0; i < argc; i++) 
 		{
-			int read = readVirtualMemory(argv+i*4, buffer);
+			int read = readVirtualMemory(argv, buffer);
 			if(read != buffer.length)
 				return -1;
             
