@@ -1,5 +1,8 @@
 package nachos.userprog;
 
+import java.util.LinkedList;
+//import java.util.concurrent.locks.Lock;
+
 import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
@@ -11,6 +14,7 @@ public class UserKernel extends ThreadedKernel {
 	/**
 	 * Allocate a new user kernel.
 	 */
+
 	public UserKernel() {
 		super();
 	}
@@ -23,6 +27,14 @@ public class UserKernel extends ThreadedKernel {
 		super.initialize(args);
 
 		console = new SynchConsole(Machine.console());
+
+		// initialize the following linkedlist with all free physical pages
+		free_physical_pages = new LinkedList<Integer>();
+		for (int i = 0; i < Machine.processor().getNumPhysPages(); i++){
+			free_physical_pages.add(new Integer(i));
+		}
+
+		lock1 = new Lock();
 
 		Machine.processor().setExceptionHandler(new Runnable() {
 			public void run() {
@@ -124,4 +136,10 @@ public class UserKernel extends ThreadedKernel {
 
 	// dummy variables to make javac smarter
 	private static Coff dummy1 = null;
+
+	// this static linkedlist keeps track of all free physical pages to be allocated
+	public static LinkedList<Integer> free_physical_pages;
+
+	public static Lock lock1;
+
 }

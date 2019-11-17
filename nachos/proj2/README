@@ -1,0 +1,60 @@
+Team Members: Yanzhi Ding (A14109703), 
+			  Moxuan Yang (A13916673), 
+			  Meena Kaliswamy (A12983349);
+
+Code Description:
+-----------------
+Part 1:
+In this part, we implemented the file system calls creat, open, read, write, close, and unlink,
+which should all function as specified in syscall.h. First we implemented the relatively easy
+methods handleCreate, handleOpen, handleClose, and handleUnlink. The first two methods create an
+instance of Openfile which should be placed in the file descriptor table, but they differ for
+handleCreate will truncate the file while handleOpen will never. Then we implemented handleClose 
+and handleUnlink by utilizing the methods in Openfile class and ThreadedKernel class, namely close()
+and remove(). Lastly, we implemented handleWrite and handleRead. The first method reads from the
+VM and writes to the file entry in the file descriptor table; we accomplished this part by using
+readVirtualMemory() of UserProcess class and write() from OpenfieWithPosition class. The latter
+method reads from the file and writes to the VM, which we accomplished by using read() method from
+OpenfieWithPosition class and writeVirtualMemory() from UserProcess class.
+
+To test this part, we run the sample tests write1.c, write4.c and write10.c to ensure that every test
+passed given a variety of inputs to test not only a single methods but multiple methods as a whole.
+
+----------------
+Part 2:
+In this part, we Implement support for multiprogramming. The initial Nachos code is restricted to 
+running only one user process, and we need to make it work for multiple user processes. We created
+a static linkedlist to store the free physical pages. Then we created a pageTable for each process
+that maps the virtual pages to the physical pages. To accomplish the goal, we modified loadSections()
+of UserProcess class so that it allocates the pageTable and the number of physical pages based on the
+size of the address space required to load and run the user program (and no larger). This method sets 
+up the pageTable structure for the process so that the program is loaded into the physical memory 
+pages it has allocated for the address space. Then we modified the UserProcess.readVirtualMemory and 
+UserProcess.writeVirtualMemory, which copy data between the kernel and the user's virtual address space,
+now they work with multiple user processes after we calculate the physical address for each virtual 
+memory address to transfer data between memory and buffer. At last we implemented unload by having a
+local variable loaded_pages that store the PFNs of each loaded physical page; then we simply need to
+remove then all from this list and add back to the linkedlist storing all free physical_pages.
+
+To test this part, we utilized the tests files from part 1 and made sure the test outputs are as
+expected.
+
+--------------
+Part 3:
+In this part, we implemented the system calls exec, join and exit. Following the comments in 
+syscall.h, we completed handleExec() that both creates a new process and loads a new program into
+that process. Then we used KThread.join to implement the join system call, and made sure that
+only the parent process can join to any process. Next we extended the halt system so it can only
+be invoked by the root process, otherwise return an error. At last we implemented handleExit. We
+especially made sure that a process exits normally when it calls the exit syscall and provodes a
+status value as the argument, and the last exiting process to call exit should cause the machine
+to halt by calling terminate().
+
+To test this part, we run the sample tests to ensure they all passed and based on the tests, we
+wrote our own tests to test with more inputs to test different cases. Thus, we ensured the correct-
+ness of our code.
+
+—————————————-
+Contribution: For this assignments,the three of us worked together, 
+assigned roles of the driver, the coder, and the test writer and 
+switched our roles for different part.

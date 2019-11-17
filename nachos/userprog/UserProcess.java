@@ -6,6 +6,10 @@ import nachos.userprog.*;
 import nachos.vm.*;
 
 import java.io.EOFException;
+import java.util.ArrayList;
+import java.util.LinkedList;
+
+//import javax.annotation.processing.Processor;
 
 /**
  * Encapsulates the state of a user process that is not contained in its user
@@ -20,8 +24,8 @@ import java.io.EOFException;
  * @see nachos.network.NetProcess
  */
 public class UserProcess {
+	// this is the file table of the file descriptors and the corresponding file
 	private OpenFile[] fileTable = new OpenFile[16];
-
 
 	/**
 	 * Allocate a new process.
@@ -34,6 +38,7 @@ public class UserProcess {
 		for (int i=0; i<16; i++){
 			fileTable[i] = null;
 		}
+		loaded_pages = new LinkedList<Integer>();
 		fileTable[0] = UserKernel.console.openForReading();
 		fileTable[1] = UserKernel.console.openForWriting();
 	}
@@ -155,14 +160,81 @@ public class UserProcess {
 
 		byte[] memory = Machine.processor().getMemory();
 
-		// for now, just assume that virtual addresses equal physical addresses
+		int numPhysPages = Machine.processor().getNumPhysPages();
+/*		// for now, just assume that virtual addresses equal physical addresses
 		if (vaddr < 0 || vaddr >= memory.length)
 			return 0;
+*/
 
-		int amount = Math.min(length, memory.length - vaddr);
+		/* find the physical address using the pagetable and vaddr */
+		
+		/* Extract the page number component and the offset from a 32-bit address.*/
+		int cur_vpn = Processor.pageFromAddress(vaddr);
+		int cur_vpn_offset = Processor.offsetFromAddress(vaddr);
+		int cur_ppn = -1;
+		int bytes_read = 0;
+		for(int i = 0; i < numPhysPages; i++) {
+			// loop through the pagetable to find the target vpn
+			if (cur_vpn == pageTable[i].vpn && pageTable[i].valid) {
+				cur_ppn = pageTable[i].ppn;
+				break;
+			}
+		}
+
+		// if the current ppn is not modified/ invalid, simply return 0
+		if(cur_ppn <0) return 0;
+
+		// calculate the ppn's address 
+		int cur_ppn_addr = cur_ppn*pageSize + cur_vpn_offset;
+
+		// if the address is out of bounds, simply return 0
+		if(cur_ppn_addr>=memory.length) return 0;
+		int amount = Math.min(length, pageSize-cur_vpn_offset);
+
+/*		int amount = Math.min(length, memory.length - vaddr);
 		System.arraycopy(memory, vaddr, data, offset, amount);
+*/
 
-		return amount;
+		System.arraycopy(memory, cur_ppn_addr, data, offset, amount);
+		// update the length left to be read
+		length -= amount;
+		// update the bytes having been read
+		bytes_read += amount;
+		// update the data's offset/ next pos to be read
+		offset += amount;
+
+		Boolean notExist = true;
+		// while the virtual pages are contiguous, the physical pages are not
+		// so we need to loop through to find the next physical page to fetch
+		// data if there are still more bytes required to read
+		while (length>0) {
+			// update the virtual page number
+			cur_vpn++;
+			for (int i = 0; i < numPhysPages; i++) {
+				if(cur_vpn == pageTable[i].vpn && pageTable[i].valid) {
+					notExist = false;
+					cur_ppn = pageTable[i].ppn;
+					break;
+				}
+			}
+
+			// calc the next physical page's address
+			cur_ppn_addr = cur_ppn*pageSize; // + cur_vpn_offset;
+			// return the number of bytes already read if any of the following conditions
+			// is satisfied
+			if (cur_ppn<0 || cur_ppn_addr >= memory.length || notExist) return bytes_read;
+
+			amount = Math.min(length, pageSize);
+			System.arraycopy(memory, cur_ppn_addr, data, offset, length);
+
+			// update all flags/ counters
+			notExist = true;
+			bytes_read += amount;
+			length -= amount;
+			offset += amount;
+		}
+
+		return bytes_read;
 	}
 
 	/**
@@ -197,7 +269,8 @@ public class UserProcess {
 
 		byte[] memory = Machine.processor().getMemory();
 
-		// for now, just assume that virtual addresses equal physical addresses
+		int numPhysPages = Machine.processor().getNumPhysPages();
+/*		// for now, just assume that virtual addresses equal physical addresses
 		if (vaddr < 0 || vaddr >= memory.length)
 			return 0;
 
@@ -205,6 +278,77 @@ public class UserProcess {
 		System.arraycopy(data, offset, memory, vaddr, amount);
 
 		return amount;
+
+*/
+
+		/* Extract the page number component and the offset from a 32-bit address.*/
+		int cur_vpn = Processor.pageFromAddress(vaddr);
+		int cur_vpn_offset = Processor.offsetFromAddress(vaddr);
+		int cur_ppn = -1;
+		int bytes_written = 0;
+		for(int i = 0; i < numPhysPages; i++) {
+			// loop through the pagetable to find the target page, which should not be readonly
+			if (cur_vpn == pageTable[i].vpn && pageTable[i].valid && !pageTable[i].readOnly) {
+				cur_ppn = pageTable[i].ppn;
+				break;
+			}
+		}
+
+		// if the current ppn is not modified/ invalid, simply return 0
+		if(cur_ppn <0) return 0;
+
+		// calculate the ppn's address 
+		int cur_ppn_addr = cur_ppn*pageSize + cur_vpn_offset;
+
+		// if the address is out of bounds, simply return 0
+		if(cur_ppn_addr>=memory.length) return 0;
+		int amount = Math.min(length, pageSize-cur_vpn_offset);
+
+/*		int amount = Math.min(length, memory.length - vaddr);
+		System.arraycopy(memory, vaddr, data, offset, amount);
+*/
+
+		System.arraycopy(data, offset, memory, cur_ppn_addr, amount);
+		// update the length left to be read
+		length -= amount;
+		// update the bytes having been read
+		bytes_written += amount;
+		// update the data's offset/ next pos to be read
+		offset += amount;
+
+		Boolean notExist = true;
+		// while the virtual pages are contiguous, the physical pages are not
+		// so we need to loop through to find the next physical page to fetch
+		// data if there are still more bytes required to read
+		while (length>0) {
+			// update the virtual page number
+			cur_vpn++;
+			for (int i = 0; i < numPhysPages; i++) {
+				if(cur_vpn == pageTable[i].vpn && pageTable[i].valid && !pageTable[i].readOnly) {
+					notExist = false;
+					cur_ppn = pageTable[i].ppn;
+					break;
+				}
+			}
+
+			// calc the next physical page's address
+			cur_ppn_addr = cur_ppn*pageSize; // + cur_vpn_offset;
+			// return the number of bytes already read if any of the following conditions
+			// is satisfied
+			if (cur_ppn<0 || cur_ppn_addr >= memory.length || notExist) return bytes_written;
+
+			amount = Math.min(length, pageSize);
+			System.arraycopy(data, offset, memory, cur_ppn_addr, length);
+
+			// update all flags/ counters
+			notExist = true;
+			bytes_written += amount;
+			length -= amount;
+			offset += amount;
+		}
+
+		return bytes_written;
+
 	}
 
 	/**
@@ -302,12 +446,18 @@ public class UserProcess {
 	 * @return <tt>true</tt> if the sections were successfully loaded.
 	 */
 	protected boolean loadSections() {
-		if (numPages > Machine.processor().getNumPhysPages()) {
+		UserKernel.lock1.acquire();
+
+		int numPhysPages = Machine.processor().getNumPhysPages();
+
+		if (numPages > numPhysPages) {
 			coff.close();
 			Lib.debug(dbgProcess, "\tinsufficient physical memory");
 			return false;
 		}
 
+		int section_vpn = -1;
+		int num_assigned = -1;
 		// load sections
 		for (int s = 0; s < coff.getNumSections(); s++) {
 			CoffSection section = coff.getSection(s);
@@ -317,12 +467,38 @@ public class UserProcess {
 
 			for (int i = 0; i < section.getLength(); i++) {
 				int vpn = section.getFirstVPN() + i;
+				section_vpn = vpn;
+				// assign the page frame number of the physical page
+				int ppn = UserKernel.free_physical_pages.removeFirst();
 
-				// for now, just assume virtual addresses=physical addresses
-				section.loadPage(i, vpn);
+				// for now, just assume virtual addresses=physical addresses (not true anymore)
+//				section.loadPage(i, vpn);
+
+				// add the page to the loaded list
+				loaded_pages.add(ppn);
+
+				// Load a page from this segment of the current pagetable into physical memory.
+				section.loadPage(i, ppn);
+
+				num_assigned++;
+
+				// if this coff section is read-only create the entry with
+				// setting the readOnly bit to be true
+				pageTable[num_assigned] = new TranslationEntry(vpn, ppn, true, section.isReadOnly(), false, false);
+					
 			}
 		}
 
+		// create entries for the rest of the pages
+		for (int k = num_assigned+1; k<numPhysPages; k++) {
+			section_vpn++;
+			int ppn = UserKernel.free_physical_pages.removeFirst();
+			// add the page to the loaded list
+			loaded_pages.add(ppn);
+			pageTable[k] = new TranslationEntry(section_vpn, ppn, true, false, false, false);
+		}
+
+		UserKernel.lock1.release();
 		return true;
 	}
 
@@ -330,6 +506,11 @@ public class UserProcess {
 	 * Release any resources allocated by <tt>loadSections()</tt>.
 	 */
 	protected void unloadSections() {
+		UserKernel.lock1.acquire();
+		for(int i = 0; i<loaded_pages.size(); i++) {
+			UserKernel.free_physical_pages.add(loaded_pages.removeLast());
+		}
+		UserKernel.lock1.release();
 	}
 
 	/**
@@ -453,14 +634,11 @@ public class UserProcess {
 		case syscallHalt:
 			return handleHalt();
 		case syscallExit:
-			return handleExit(a0);
-		
+			return handleExit(a0);	
 		case syscallCreate:
 			return handleCreate(a0);
-
 		case syscallOpen:
 			return handleOpen(a0);
-
 		case syscallRead:
 			return handleRead(a0,a1,a2);
 		case syscallWrite:
@@ -469,7 +647,10 @@ public class UserProcess {
 			return handleClose(a0);
 		case syscallUnlink:
 			return handleUnlink(a0);
-
+		case syscallJoin:
+			return handleJoin(a0, a1);
+		case syscallExec:
+			return handleExec(a0, a1, a2);
 
 		default:
 			Lib.debug(dbgProcess, "Unknown syscall " + syscall);
@@ -563,7 +744,6 @@ public class UserProcess {
 
 		}
 	}
-
 
 	/* This function reads from the buffer and writes to the file in fd table*/
 	public int handleWrite(int fd, int addr, int length){
@@ -670,7 +850,7 @@ public class UserProcess {
 
 		}
 		else{
-//	int vm_addr = addr;
+
 			int count = 0;
 			int pos = 0;
 			int n = 0;
@@ -705,6 +885,9 @@ public class UserProcess {
 
 	}
 
+	public int handleJoin(int processID, int status) { return 0;}
+	public int handleExec(int fileAddr, int argc, int args) { return 0;}
+
 	/** The program being run by this process. */
 	protected Coff coff;
 
@@ -727,4 +910,7 @@ public class UserProcess {
 	private static final int pageSize = Processor.pageSize;
 
 	private static final char dbgProcess = 'a';
+
+	/* a local var to track all of the loaded pages */
+	private LinkedList<Integer> loaded_pages;
 }
