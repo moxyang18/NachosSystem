@@ -149,5 +149,6 @@ public class UserKernel extends ThreadedKernel {
 	public static Lock lock2;
 
 	public static int processIDcounter = 0;
+	public static int processNum = 0;
 
 }

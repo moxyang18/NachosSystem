@@ -34,6 +34,7 @@ public class UserProcess {
 	protected Hashtable<Integer,UserProcess> children = new Hashtable<Integer, UserProcess>();
 	public Integer exitStatus;
 	protected UserProcess parent;
+	
 
 	/**
 	 * Allocate a new process.
@@ -52,7 +53,7 @@ public class UserProcess {
 		fileTable[0] = UserKernel.console.openForReading();
 		fileTable[1] = UserKernel.console.openForWriting();
 		this.pid = UserKernel.processIDcounter++;
-		
+		++UserKernel.processNum;
 		lock = new Lock();
 		cv = new Condition(lock);
 		exitStatus = null;
@@ -536,7 +537,7 @@ public class UserProcess {
 	 * Handle the halt() system call.
 	 */
 	private int handleHalt() {
-
+		if(pid !=0) return -1;
 		Machine.halt();
 
 		Lib.assertNotReached("Machine.halt() did not halt machine!");
@@ -633,21 +634,17 @@ public class UserProcess {
 		}
 
 		UserKernel.lock2.acquire();
-		if(UserKernel.processIDcounter == 1){
-			UserKernel.processIDcounter--;
+		if(UserKernel.processNum == 1){
+			UserKernel.processNum--;
 			UserKernel.lock2.release();
 			Kernel.kernel.terminate();
 
 		}
 		else{
-			UserKernel.processIDcounter--;
+			UserKernel.processNum--;
 			UserKernel.lock2.release();
 			KThread.finish();
 		}
-			
-		Lib.debug(dbgProcess, "UserProcess.handleExit (" + status + ")");
-		// for now, unconditionally terminate with just one process
-		Kernel.kernel.terminate();
 
 		return status;
 	}
