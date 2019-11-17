@@ -4,7 +4,7 @@ import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
 import nachos.vm.*;
-
+import java.util.LinkedList;
 import java.io.EOFException;
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -31,9 +31,14 @@ public class UserProcess {
 	 * Allocate a new process.
 	 */
 	public UserProcess() {
-		int numPhysPages = Machine.processor().getNumPhysPages();
-		pageTable = new TranslationEntry[numPhysPages];
-		for (int i = 0; i < numPhysPages; i++)
+
+		//concurrency ???
+
+
+		//int numPhysPages = Machine.processor().getNumPhysPages();
+		
+		pageTable = new TranslationEntry[numPages];
+		for (int i = 0; i < numPages; i++)
 			pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
 		for (int i=0; i<16; i++){
 			fileTable[i] = null;
@@ -41,6 +46,12 @@ public class UserProcess {
 		loaded_pages = new LinkedList<Integer>();
 		fileTable[0] = UserKernel.console.openForReading();
 		fileTable[1] = UserKernel.console.openForWriting();
+
+
+		currPages = new LinkedList<Integer>();
+
+		lock = new Lock();
+        cv = new Condition(lock);
 	}
 
 	/**
@@ -274,8 +285,6 @@ public class UserProcess {
 		if (vaddr < 0 || vaddr >= memory.length)
 			return 0;
 
-		int amount = Math.min(length, memory.length - vaddr);
-		System.arraycopy(data, offset, memory, vaddr, amount);
 
 		return amount;
 
@@ -455,6 +464,12 @@ public class UserProcess {
 			Lib.debug(dbgProcess, "\tinsufficient physical memory");
 			return false;
 		}
+		int entry_count = 0;
+		
+
+		
+		pageTable = new TranslationEntry[numPages];
+
 
 		int section_vpn = -1;
 		int num_assigned = -1;
@@ -884,6 +899,10 @@ public class UserProcess {
 		}
 
 	}
+	private LinkedList<Integer> currPages;
+	
+	public Condition cv;
+	public Lock lock;
 
 	public int handleJoin(int processID, int status) { return 0;}
 	public int handleExec(int fileAddr, int argc, int args) { return 0;}
