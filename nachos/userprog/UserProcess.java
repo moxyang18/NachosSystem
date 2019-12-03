@@ -34,7 +34,7 @@ public class UserProcess {
 	protected Hashtable<Integer,UserProcess> children = new Hashtable<Integer, UserProcess>();
 	public Integer exitStatus;
 	protected UserProcess parent;
-	
+	private boolean exitAbn;
 
 	/**
 	 * Allocate a new process.
@@ -51,6 +51,7 @@ public class UserProcess {
 		cv = new Condition(lock);
 		exitStatus = null;
 		UserKernel.lock2.release();
+		exitAbn = false;
 	}
 
 	/**
@@ -554,13 +555,10 @@ public class UserProcess {
 		// the filename cannnot be null and the argc cannot be smaller
 		// than 0, filename also has to end with ".coff", with has length
 		// > 5
-		if(filename == null || argc < 0 || filename.length() <=5) {
+		if(filename == null || argc < 0 || filename.length() <=5 ||
+			filename.substring(filename.length()-5, filename.length()) != ".coff") {
 			return -1;
 		}
-
-		// the filename must end with '.coff'
-		if(filename.substring(filename.length()-5, filename.length()) != ".coff")
-			return -1;
 
 		//Create string array to represent the "args"
 		String[] args = new String[argc];
@@ -571,9 +569,11 @@ public class UserProcess {
 		//allocating program arguments to args[]
 		for (int i = 0; i < argc; i++) 
 		{
+			buffer = new byte[4];
+			// advance the address by i*sizeOf(int) every time
 			int read = readVirtualMemory(argv+i*4, buffer);
-	//		if(read != buffer.length)
-	//			return -1;
+			if(read != buffer.length)
+				return -1;
             
 			args[i] = readVirtualMemoryString(Lib.bytesToInt(buffer, 0),256);
 			
@@ -592,14 +592,16 @@ public class UserProcess {
 		
 		// if such a process can be made
 		if(succ) {
+			children.put(child.pid, child);
 			child.parent = this;
 			children_list.add(child);
 			
 			return child.pid;
 		}
 
-		// otherwise
-
+		// otherwise, we need to decrease the number of processes 
+		// since in the constructor of the new process we incremented that
+		--UserKernel.processNum;
 
 		return -1;
 	}
@@ -620,10 +622,13 @@ public class UserProcess {
 
 		//clean up
 		for(int i = 0; i < 16; i++){
-			if(fileTable[i] != null){
+		/*	if(fileTable[i] != null){
 				fileTable[i].close();
 				fileTable[i] = null;
-			}
+			}*/
+
+			// call handleClose to close the Openfile
+			this.handleClose(i);
 		  }
 		unloadSections();
 		coff.close();
@@ -644,19 +649,20 @@ public class UserProcess {
 		}
 
 		UserKernel.lock2.acquire();
-		if(UserKernel.processNum == 1){
-			UserKernel.processNum--;
+		UserKernel.processNum--;
+		if(UserKernel.processNum == 0){
 			UserKernel.lock2.release();
 			Kernel.kernel.terminate();
 
 		}
 		else{
-			UserKernel.processNum--;
 			UserKernel.lock2.release();
 			KThread.finish();
 		}
 
-		return status;
+		
+		//return status;
+		return 0;
 	}
 
 	private int handleJoin(int processID, int status){
@@ -667,11 +673,11 @@ public class UserProcess {
 		}
 
 		UserProcess child = children.get(processID);
-		
-	
+
+		child.thread.join();
+	/*
 		child.lock.acquire();
-		
-		
+			
 		Integer childStatus = child.exitStatus;
 		if (childStatus == null)
 		{
@@ -685,14 +691,22 @@ public class UserProcess {
 
 		}
 		child.lock.release();
-	
+
+		*/
+
+		Integer childStatus = child.exitStatus;
+
 		children.remove(processID);// can't be joined later	
 		
-		byte[] statusAry = Lib.bytesFromInt(childStatus.intValue());
-		writeVirtualMemory(status, statusAry);
 		
-		if (childStatus.intValue() == 0)
+		if (!child.exitAbn){
+
+			byte[] statusAry = Lib.bytesFromInt(childStatus.intValue());
+			writeVirtualMemory(status, statusAry);
+
+		
 			return 1;
+		}	
 		else
 			return 0;
 	  }
@@ -819,6 +833,9 @@ public class UserProcess {
 			break;
 
 		default:
+
+			//if no syscall to handleexception but there is an exception
+			exitAbn = true;
 			Lib.debug(dbgProcess, "Unexpected exception: "
 					+ Processor.exceptionNames[cause]);
 			Lib.assertNotReached("Unexpected exception");
@@ -848,7 +865,7 @@ public class UserProcess {
 
 		OpenFile openFile = ThreadedKernel.fileSystem.open(filename, false); //truncate????
 		if (openFile == null) return -1;
-		for (int i=2; i<16 ;i++){ //never refer stream
+		for (int i=0; i<16 ;i++){ //never refer stream
 			if (fileTable[i]==null){
 				fileTable[i]= openFile;
 				return i;
