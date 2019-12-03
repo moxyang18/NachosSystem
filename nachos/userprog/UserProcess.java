@@ -559,7 +559,7 @@ public class UserProcess {
 		}
 
 		// the filename must end with '.coff'
-		if(filename.substring(filename.length()-5, filename()) != ".coff")
+		if(filename.substring(filename.length()-5, filename.length()) != ".coff")
 			return -1;
 
 		//Create string array to represent the "args"
