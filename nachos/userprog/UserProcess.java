@@ -42,13 +42,6 @@ public class UserProcess {
 	public UserProcess() {
 		UserKernel.lock2.acquire();
 
-		int numPhysPages = Machine.processor().getNumPhysPages();
-		pageTable = new TranslationEntry[numPhysPages];
-		for (int i = 0; i < numPhysPages; i++)
-			pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
-		for (int i=0; i<16; i++){
-			fileTable[i] = null;
-		}
 		loaded_pages = new LinkedList<Integer>();
 		fileTable[0] = UserKernel.console.openForReading();
 		fileTable[1] = UserKernel.console.openForWriting();
@@ -177,7 +170,7 @@ public class UserProcess {
 
 		byte[] memory = Machine.processor().getMemory();
 
-		int numPhysPages = Machine.processor().getNumPhysPages();
+//		int numPhysPages = Machine.processor().getNumPhysPages();
 
 		/* find the physical address using the pagetable and vaddr */
 		
@@ -186,7 +179,7 @@ public class UserProcess {
 		int cur_vpn_offset = Processor.offsetFromAddress(vaddr);
 		int cur_ppn = -1;
 		int bytes_read = 0;
-		for(int i = 0; i < numPhysPages; i++) {
+		for(int i = 0; i < numPages; i++) {
 			// loop through the pagetable to find the target vpn
 			if (cur_vpn == pageTable[i].vpn && pageTable[i].valid) {
 				cur_ppn = pageTable[i].ppn;
@@ -220,7 +213,7 @@ public class UserProcess {
 		while (length>0) {
 			// update the virtual page number
 			cur_vpn++;
-			for (int i = 0; i < numPhysPages; i++) {
+			for (int i = 0; i < numPages; i++) {
 				if(cur_vpn == pageTable[i].vpn && pageTable[i].valid) {
 					notExist = false;
 					cur_ppn = pageTable[i].ppn;
@@ -279,14 +272,14 @@ public class UserProcess {
 
 		byte[] memory = Machine.processor().getMemory();
 
-		int numPhysPages = Machine.processor().getNumPhysPages();
+//		int numPhysPages = Machine.processor().getNumPhysPages();
 
 		/* Extract the page number component and the offset from a 32-bit address.*/
 		int cur_vpn = Processor.pageFromAddress(vaddr);
 		int cur_vpn_offset = Processor.offsetFromAddress(vaddr);
 		int cur_ppn = -1;
 		int bytes_written = 0;
-		for(int i = 0; i < numPhysPages; i++) {
+		for(int i = 0; i < numPages; i++) {
 			// loop through the pagetable to find the target page, which should not be readonly
 			if (cur_vpn == pageTable[i].vpn && pageTable[i].valid && !pageTable[i].readOnly) {
 				cur_ppn = pageTable[i].ppn;
@@ -320,7 +313,7 @@ public class UserProcess {
 		while (length>0) {
 			// update the virtual page number
 			cur_vpn++;
-			for (int i = 0; i < numPhysPages; i++) {
+			for (int i = 0; i < numPages; i++) {
 				if(cur_vpn == pageTable[i].vpn && pageTable[i].valid && !pageTable[i].readOnly) {
 					notExist = false;
 					cur_ppn = pageTable[i].ppn;
@@ -379,6 +372,7 @@ public class UserProcess {
 		// make sure the sections are contiguous and start at page 0
 		numPages = 0;
 		for (int s = 0; s < coff.getNumSections(); s++) {
+
 			CoffSection section = coff.getSection(s);
 			if (section.getFirstVPN() != numPages) {
 				coff.close();
@@ -387,6 +381,7 @@ public class UserProcess {
 			}
 			numPages += section.getLength();
 		}
+
 
 		// make sure the argv array will fit in one page
 		byte[][] argv = new byte[args.length][];
@@ -453,6 +448,14 @@ public class UserProcess {
 			return false;
 		}
 
+		// create a pageTable of the needed number of page entries
+		pageTable = new TranslationEntry[numPages];
+		for (int i = 0; i < numPages; i++)
+			pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
+		for (int i=0; i<16; i++){
+			fileTable[i] = null;
+		}
+
 		int section_vpn = -1;
 		int num_assigned = -1;
 		// load sections
@@ -486,7 +489,7 @@ public class UserProcess {
 		}
 
 		// create entries for the rest of the pages
-		for (int k = num_assigned+1; k<numPhysPages; k++) {
+		for (int k = num_assigned+1; k<numPages; k++) {
 			section_vpn++;
 			//System.out.println("the size of physical pages is after :" + UserKernel.free_physical_pages.size());
 			int ppn = UserKernel.free_physical_pages.removeLast();
@@ -544,19 +547,21 @@ public class UserProcess {
 		return 0;
 	}
 
-
-
-
-
 	private int handleExec(int file, int argc, int argv) {
 		
 		
-		String filename = readVirtualMemoryString(file,256);
-		
-		if(filename == null || argc < 0) {
+		String filename = readVirtualMemoryString(file,256);	
+		// the filename cannnot be null and the argc cannot be smaller
+		// than 0, filename also has to end with ".coff", with has length
+		// > 5
+		if(filename == null || argc < 0 || filename.length() <=5) {
 			return -1;
 		}
-		
+
+		// the filename must end with '.coff'
+		if(filename.substring(filename.length()-5, filename()) != ".coff")
+			return -1;
+
 		//Create string array to represent the "args"
 		String[] args = new String[argc];
 		
@@ -566,31 +571,36 @@ public class UserProcess {
 		//allocating program arguments to args[]
 		for (int i = 0; i < argc; i++) 
 		{
-			int read = readVirtualMemory(argv, buffer);
-			if(read != buffer.length)
-				return -1;
+			int read = readVirtualMemory(argv+i*4, buffer);
+	//		if(read != buffer.length)
+	//			return -1;
             
 			args[i] = readVirtualMemoryString(Lib.bytesToInt(buffer, 0),256);
 			
 			//error occur, return -1
-			if (args[i] == null){
+			if (args[i] == null)	return -1;
 				
-				return -1;
-			}
 		}
 		
+		// create a new process for execute
 		UserProcess child = newUserProcess();
 		
-		children.put(child.pid, child);
-		child.parent = this;
+	//	children.put(child.pid, child);
+		
+		//child.parent = this;
 		boolean succ = child.execute(filename, args);
 		
-
+		// if such a process can be made
 		if(succ) {
+			child.parent = this;
+			children_list.add(child);
+			
 			return child.pid;
 		}
 
-		
+		// otherwise
+
+
 		return -1;
 	}
 
@@ -1037,5 +1047,9 @@ public class UserProcess {
 
 	/* a local var to track all of the loaded pages */
 	private LinkedList<Integer> loaded_pages;
+
+	/* a list of child processes of the current process */
+	private LinkedList<UserProcess> children_list;
+
 }
 
