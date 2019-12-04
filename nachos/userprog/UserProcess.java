@@ -43,9 +43,11 @@ public class UserProcess {
 		UserKernel.lock2.acquire();
 
 		loaded_pages = new LinkedList<Integer>();
+		for (int i=0; i<16; i++){
+			fileTable[i] = null;
+		}
 		fileTable[0] = UserKernel.console.openForReading();
 		fileTable[1] = UserKernel.console.openForWriting();
-		for(int k = 2; k<16; k++)	fileTable[k] = null;
 		this.pid = UserKernel.processIDcounter++;
 		++UserKernel.processNum;
 		lock = new Lock();
@@ -454,9 +456,6 @@ public class UserProcess {
 		pageTable = new TranslationEntry[numPages];
 		for (int i = 0; i < numPages; i++)
 			pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
-		for (int i=0; i<16; i++){
-			fileTable[i] = null;
-		}
 
 		int section_vpn = -1;
 		int num_assigned = -1;
@@ -864,6 +863,8 @@ public class UserProcess {
 		String filename = readVirtualMemoryString(fn, 256);
 		if(filename == null ) return -1;
 
+		//System.out.println("the filename is " + filename);
+
 		OpenFile openFile = ThreadedKernel.fileSystem.open(filename, false); //truncate????
 		if (openFile == null) return -1;
 		for (int i=2; i<16 ;i++){                     //never refer stream
@@ -872,6 +873,7 @@ public class UserProcess {
 				return i;
 			}
 		}
+
 		return -1; // table is full
 	}
 
@@ -923,7 +925,7 @@ public class UserProcess {
 			//readVirtualMemory(addr,buffer,0, length);
 			int valid_read = readVirtualMemory(addr,buffer,0, length);
 		
-			System.out.println("write was called with fd =" + fd);
+			//System.out.println("write was called with fd =" + fd);
 
 			//return fileTable[fd].write(0,buffer,0,length);
 			return fileTable[fd].write(buffer,0,length);
