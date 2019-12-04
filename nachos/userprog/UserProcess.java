@@ -45,6 +45,7 @@ public class UserProcess {
 		loaded_pages = new LinkedList<Integer>();
 		fileTable[0] = UserKernel.console.openForReading();
 		fileTable[1] = UserKernel.console.openForWriting();
+		for(int k = 2; k<16; k++)	fileTable[k] = null;
 		this.pid = UserKernel.processIDcounter++;
 		++UserKernel.processNum;
 		lock = new Lock();
@@ -865,7 +866,7 @@ public class UserProcess {
 
 		OpenFile openFile = ThreadedKernel.fileSystem.open(filename, false); //truncate????
 		if (openFile == null) return -1;
-		for (int i=0; i<16 ;i++){ //never refer stream
+		for (int i=2; i<16 ;i++){                     //never refer stream
 			if (fileTable[i]==null){
 				fileTable[i]= openFile;
 				return i;
@@ -922,6 +923,8 @@ public class UserProcess {
 			//readVirtualMemory(addr,buffer,0, length);
 			int valid_read = readVirtualMemory(addr,buffer,0, length);
 		
+			System.out.println("write was called with fd =" + fd);
+
 			//return fileTable[fd].write(0,buffer,0,length);
 			return fileTable[fd].write(buffer,0,length);
 			
