@@ -556,7 +556,7 @@ public class UserProcess {
 		// than 0, filename also has to end with ".coff", with has length
 		// > 5
 		if(filename == null || argc < 0 || filename.length() <=5 ||
-			filename.substring(filename.length()-5, filename.length()) != ".coff") {
+			filename.substring(filename.length()-5, filename.length()).equals(".coff")) {
 			return -1;
 		}
 
