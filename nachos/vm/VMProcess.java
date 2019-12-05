@@ -69,7 +69,7 @@ public class VMProcess extends UserProcess {
 
 		// check if the page is invalid
 		if(pageTable[cur_vpn].valid == false) {
-			handlePgFault(vaddr);
+			handlePgFault(vaddr+bytes_read);
 
 			// if the page still remains invalid, return 0
 			if(pageTable[cur_vpn].valid == false)
@@ -187,7 +187,7 @@ public class VMProcess extends UserProcess {
 		// if the page is not valid, call handlePgFault to prepare new page
 		if(pageTable[cur_vpn].valid == false) {
 
-			handlePgFault(vaddr);
+			handlePgFault(vaddr+bytes_written);
 			if(pageTable[cur_vpn].valid == false) return 0;
 		}
 
@@ -293,6 +293,7 @@ public class VMProcess extends UserProcess {
 		if (numPages > numPhysPages) {
 			coff.close();
 			Lib.debug(dbgProcess, "\tinsufficient physical memory");
+			UserKernerl.lock1.release();
 			return false;
 		}
 
@@ -315,20 +316,20 @@ public class VMProcess extends UserProcess {
 				section_vpn = vpn;
 				// assign the page frame number of the physical page
 				//System.out.println("the size of physical pages is:" + UserKernel.free_physical_pages.size());
-				int ppn = UserKernel.free_physical_pages.removeLast();
+	//			int ppn = UserKernel.free_physical_pages.removeLast();
 
 
 				// add the page to the loaded list
-				loaded_pages.add(ppn);
+	//			loaded_pages.add(ppn);
 
 				// Load a page from this segment of the current pagetable into physical memory.
 				// section.loadPage(i, ppn);
 
-				num_assigned++;
+	//			num_assigned++;
 
 				// if this coff section is read-only create the entry with
 				// setting the readOnly bit to be true
-				pageTable[num_assigned] = new TranslationEntry(vpn, ppn, true, section.isReadOnly(), false, false);
+	//			pageTable[num_assigned] = new TranslationEntry(vpn, ppn, true, section.isReadOnly(), false, false);
 					
 			}
 		}
