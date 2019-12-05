@@ -94,26 +94,44 @@ public class VMProcess extends UserProcess {
 		// update the data's offset/ next pos to be read
 		offset += amount;
 
-		Boolean notExist = true;
+//		Boolean notExist = true;
 		// while the virtual pages are contiguous, the physical pages are not
 		// so we need to loop through to find the next physical page to fetch
 		// data if there are still more bytes required to read
+		
+		int count = 1;
 		while (length>0) {
 			// update the virtual page number
 			cur_vpn++;
-			for (int i = 0; i < numPages; i++) {
-				if(cur_vpn == pageTable[i].vpn && pageTable[i].valid) {
-					notExist = false;
-					cur_ppn = pageTable[i].ppn;
-					break;
-				}
+
+
+
+//			for (int i = 0; i < numPages; i++) {
+//				if(cur_vpn == pageTable[i].vpn && pageTable[i].valid) {
+//					notExist = false;
+//					cur_ppn = pageTable[i].ppn;
+//					break;
+//				}
+//			}
+
+
+			// check if the page is invalid
+			if(pageTable[cur_vpn].valid == false) {
+				handlePgFault(vaddr+count*4);
+
+				// if the page still remains invalid, return 0
+				if(pageTable[cur_vpn].valid == false)
+					return bytes_read;
 			}
+
+			// get the corresponding physical page number
+			cur_ppn = pageTable[cur_vpn].ppn;
 
 			// calc the next physical page's address
 			cur_ppn_addr = cur_ppn*pageSize; // + cur_vpn_offset;
 			// return the number of bytes already read if any of the following conditions
 			// is satisfied
-			if (cur_ppn<0 || cur_ppn_addr >= memory.length || notExist) return bytes_read;
+			if (cur_ppn<0 || cur_ppn_addr >= memory.length) return bytes_read;
 
 			amount = Math.min(length, pageSize);
 			System.arraycopy(memory, cur_ppn_addr, data, offset, length);
@@ -168,13 +186,13 @@ public class VMProcess extends UserProcess {
 
 		// if the page is not valid, call handlePgFault to prepare new page
 		if(pageTable[cur_vpn].valid == false) {
-			
+
 			handlePgFault(vaddr);
 			if(pageTable[cur_vpn].valid == false) return 0;
 		}
 
 		// if the current ppn is still not modified/ invalid, simply return 0
-//		if(cur_ppn <0 || !pageTable[cur_vpn].valid) return 0;
+		//              if(cur_ppn <0 || !pageTable[cur_vpn].valid) return 0;
 
 		int cur_ppn = pageTable[cur_vpn].ppn;
 
@@ -197,26 +215,32 @@ public class VMProcess extends UserProcess {
 		// update the data's offset/ next pos to be read
 		offset += amount;
 
-		Boolean notExist = true;
+		boolean notExist = true;
 		// while the virtual pages are contiguous, the physical pages are not
 		// so we need to loop through to find the next physical page to fetch
 		// data if there are still more bytes required to read
+		int count = 1;
 		while (length>0) {
+			
 			// update the virtual page number
 			cur_vpn++;
-			for (int i = 0; i < numPages; i++) {
-				if(cur_vpn == pageTable[i].vpn && pageTable[i].valid && !pageTable[i].readOnly) {
-					notExist = false;
-					cur_ppn = pageTable[i].ppn;
-					break;
-				}
+
+			if(cur_vpn >= numPages || cur_vpn <0 || pageTable[cur_vpn].readOnly) return bytes_written;
+
+			// if the page is not valid, call handlePgFault to prepare new page
+			if(pageTable[cur_vpn].valid == false) {
+				handlePgFault(vaddr+count*4);
+				count++;
+				if(pageTable[cur_vpn].valid == false) return bytes_written;
 			}
+
+			cur_ppn = pageTable[cur_vpn];
 
 			// calc the next physical page's address
 			cur_ppn_addr = cur_ppn*pageSize; // + cur_vpn_offset;
 			// return the number of bytes already read if any of the following conditions
 			// is satisfied
-			if (cur_ppn<0 || cur_ppn_addr >= memory.length || notExist) return bytes_written;
+			if (cur_ppn<0 || cur_ppn_addr >= memory.length) return bytes_written;
 
 			amount = Math.min(length, pageSize);
 			System.arraycopy(data, offset, memory, cur_ppn_addr, length);
@@ -309,7 +333,7 @@ public class VMProcess extends UserProcess {
 			}
 		}
 
-
+		return true;
 		//return super.loadSections();
 	}
 
