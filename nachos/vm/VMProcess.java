@@ -77,7 +77,7 @@ public class VMProcess extends UserProcess {
 		}
 
 		// get the corresponding physical page number
-		int cur_ppn = pageTable[cur_vpn];
+		int cur_ppn = pageTable[cur_vpn].ppn;
 
 		// calculate the ppn's address 
 		int cur_ppn_addr = cur_ppn*pageSize + cur_vpn_offset;
@@ -169,7 +169,7 @@ public class VMProcess extends UserProcess {
 		// if the page is not valid, call handlePgFault to prepare new page
 		if(pageTable[cur_vpn].valid == false) {
 			handlePgFault(vaddr);
-			cur_ppn = pageTable[cur_vpn].ppn;
+			if(pageTable[cur_vpn].valid == false) return 0;
 		}
 
 		// if the current ppn is still not modified/ invalid, simply return 0

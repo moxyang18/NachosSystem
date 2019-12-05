@@ -174,8 +174,6 @@ public class UserProcess {
 
 		byte[] memory = Machine.processor().getMemory();
 
-//		int numPhysPages = Machine.processor().getNumPhysPages();
-
 		/* find the physical address using the pagetable and vaddr */
 		
 		/* Extract the page number component and the offset from a 32-bit address.*/
@@ -1067,7 +1065,7 @@ public class UserProcess {
 	private static final char dbgProcess = 'a';
 
 	/* a local var to track all of the loaded pages */
-	private LinkedList<Integer> loaded_pages;
+	protected LinkedList<Integer> loaded_pages;
 
 }
 
