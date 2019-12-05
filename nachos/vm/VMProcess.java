@@ -168,6 +168,7 @@ public class VMProcess extends UserProcess {
 
 		// if the page is not valid, call handlePgFault to prepare new page
 		if(pageTable[cur_vpn].valid == false) {
+			
 			handlePgFault(vaddr);
 			if(pageTable[cur_vpn].valid == false) return 0;
 		}
@@ -240,6 +241,8 @@ public class VMProcess extends UserProcess {
 	 * @return <tt>true</tt> if successful.
 	 */
 	protected boolean loadSections() {
+		
+		/*
 		int numPhysPages = Machine.processor().getNumPhysPages();
 
 		if (numPages > numPhysPages) {
@@ -257,7 +260,56 @@ public class VMProcess extends UserProcess {
 		
 		return true;
 		
-		
+		*/
+
+		UserKernel.lock1.acquire();
+
+		int numPhysPages = Machine.processor().getNumPhysPages();
+
+		if (numPages > numPhysPages) {
+			coff.close();
+			Lib.debug(dbgProcess, "\tinsufficient physical memory");
+			return false;
+		}
+
+		// create a pageTable of the needed number of page entries
+		pageTable = new TranslationEntry[numPages];
+		for (int i = 0; i < numPages; i++)
+			pageTable[i] = new TranslationEntry(i, i, false, false, false, false);
+
+		int section_vpn = -1;
+		int num_assigned = -1;
+		// load sections
+		for (int s = 0; s < coff.getNumSections(); s++) {
+			CoffSection section = coff.getSection(s);
+
+			Lib.debug(dbgProcess, "\tinitializing " + section.getName()
+					+ " section (" + section.getLength() + " pages)");
+
+			for (int i = 0; i < section.getLength(); i++) {
+				int vpn = section.getFirstVPN() + i;
+				section_vpn = vpn;
+				// assign the page frame number of the physical page
+				//System.out.println("the size of physical pages is:" + UserKernel.free_physical_pages.size());
+				int ppn = UserKernel.free_physical_pages.removeLast();
+
+
+				// add the page to the loaded list
+				loaded_pages.add(ppn);
+
+				// Load a page from this segment of the current pagetable into physical memory.
+				// section.loadPage(i, ppn);
+
+				num_assigned++;
+
+				// if this coff section is read-only create the entry with
+				// setting the readOnly bit to be true
+				pageTable[num_assigned] = new TranslationEntry(vpn, ppn, true, section.isReadOnly(), false, false);
+					
+			}
+		}
+
+
 		//return super.loadSections();
 	}
 
@@ -299,6 +351,8 @@ public class VMProcess extends UserProcess {
 		if(demandVpn >= numPages) { 
 			return; 
 		}
+
+		
 
 		UserKernel.lock1.acquire();
 
