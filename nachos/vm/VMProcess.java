@@ -137,7 +137,7 @@ public class VMProcess extends UserProcess {
 			System.arraycopy(memory, cur_ppn_addr, data, offset, length);
 
 			// update all flags/ counters
-			notExist = true;
+//			notExist = true;
 			bytes_read += amount;
 			length -= amount;
 			offset += amount;
@@ -234,7 +234,7 @@ public class VMProcess extends UserProcess {
 				if(pageTable[cur_vpn].valid == false) return bytes_written;
 			}
 
-			cur_ppn = pageTable[cur_vpn];
+			cur_ppn = pageTable[cur_vpn].ppn;
 
 			// calc the next physical page's address
 			cur_ppn_addr = cur_ppn*pageSize; // + cur_vpn_offset;
@@ -332,7 +332,7 @@ public class VMProcess extends UserProcess {
 					
 			}
 		}
-
+		UserKernel.lock1.release();
 		return true;
 		//return super.loadSections();
 	}
@@ -455,6 +455,9 @@ public class VMProcess extends UserProcess {
 				// zero fill the physical page ???
 				System.arraycopy(zero_filler, 0, Machine.processor().getMemory(), Processor.makeAddress(ppn, 0), pageSize);
 		
+				// also set the TLBeNTRY
+				pageTable[section_vpn] = new TranslationEntry(section_vpn, ppn, true, false, false, false);
+
 				UserKernel.lock1.release();
 				return;
 			}
