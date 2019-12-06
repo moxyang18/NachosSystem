@@ -117,7 +117,7 @@ public class VMProcess extends UserProcess {
 
 			// check if the page is invalid
 			if(pageTable[cur_vpn].valid == false) {
-				handlePgFault(vaddr+count*4);
+				handlePgFault(vaddr+bytes_read);
 
 				// if the page still remains invalid, return 0
 				if(pageTable[cur_vpn].valid == false)
@@ -229,7 +229,7 @@ public class VMProcess extends UserProcess {
 
 			// if the page is not valid, call handlePgFault to prepare new page
 			if(pageTable[cur_vpn].valid == false) {
-				handlePgFault(vaddr+count*4);
+				handlePgFault(vaddr+bytes_written);
 				count++;
 				if(pageTable[cur_vpn].valid == false) return bytes_written;
 			}
