@@ -293,7 +293,7 @@ public class VMProcess extends UserProcess {
 		if (numPages > numPhysPages) {
 			coff.close();
 			Lib.debug(dbgProcess, "\tinsufficient physical memory");
-			UserKernerl.lock1.release();
+			UserKernel.lock1.release();
 			return false;
 		}
 
