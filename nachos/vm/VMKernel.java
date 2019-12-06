@@ -1,9 +1,12 @@
 package nachos.vm;
 
+import java.util.LinkedList;
+
 import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
 import nachos.vm.*;
+import sun.security.action.OpenFileInputStreamAction;
 
 /**
  * A kernel that can support multiple demand-paging user processes.
@@ -21,6 +24,17 @@ public class VMKernel extends UserKernel {
 	 */
 	public void initialize(String[] args) {
 		super.initialize(args);
+		int n_ppgs = Machine.processor().getNumPhysPages();
+		// initialize the PageFrame array and index it based on the ppn
+		evict_list = new PageFrame[n_ppgs];
+		lock3 = new Lock();
+		for(int cur_ppn = 0; cur_ppn < n_ppgs; cur_ppn++) {
+			evict_list[cur_ppn] = new PageFrame();
+		}
+
+		// should handle swap file here?
+		swp_file = ThreadedKernel.fileSystem.open("Global_Swap", true);
+
 	}
 
 	/**
@@ -48,4 +62,52 @@ public class VMKernel extends UserKernel {
 	private static VMProcess dummy1 = null;
 
 	private static final char dbgVM = 'v';
+
+	
+	public class PageFrame {
+		
+	/*	int vpn; 
+		int ppn;
+		public EvictTable () {
+			vpn = -1;
+			ppn = -1;
+		}
+		public EvictTable (int vpn, int ppn) {
+			this.vpn = vpn;
+			this.ppn = ppn;
+		}
+
+*/		VMProcess process;
+		TranslationEntry pageEntry;
+		boolean pinned;
+		
+		public PageFrame() {
+			process = null;
+			pageEntry = null;
+			pinned = false;
+		}
+
+		public PageFrame(VMProcess cur_process, TranslationEntry cur_entry, boolean cur_pinned) {
+			process = cur_process;
+			pageEntry = cur_entry;
+			pinned = cur_pinned;
+		}
+
+
+	}
+
+	// need a pinCount to keep track of the total number of pages pinned
+	public static int pinCount = 0;
+	public static int victimTrack = 0;
+	public static Lock lock3;
+	// this static PageFrame is to keep track of each physical page and
+	// its relevant process, whether it is pinned and the TranslationEntry
+	protected static PageFrame[] evict_list;
+	// using a single, global swap file across all processes.
+	protected static OpenFile swp_file;
+	// As with physical memory in project 2, a global free list works well. You can assume that the swap 
+	// file can grow arbitrarily, and that there should not be any read/write errors. Assert if there are.
+	protected static LinkedList<> swp_list;
+
+
 }

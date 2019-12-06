@@ -36,6 +36,7 @@ public class UserKernel extends ThreadedKernel {
 		}
 
 		lock1 = new Lock();
+		cv1 = new Condition(lock1);
 		lock2 = new Lock();
 
 		Machine.processor().setExceptionHandler(new Runnable() {
@@ -145,6 +146,8 @@ public class UserKernel extends ThreadedKernel {
 	public static LinkedList<Integer> free_physical_pages;
 
 	public static Lock lock1;
+
+	public static Condition cv1;
 
 	public static Lock lock2;
 
