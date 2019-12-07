@@ -274,7 +274,7 @@ public class VMProcess extends UserProcess {
 			// pin the physical page to restrict evict untimely
 			VMKernel.evict_list[cur_ppn].pinned = true;
 			VMKernel.pinCount += 1;
-			if(amount >0)	VMKernel.evict_list[cur_ppn].dirty = true;
+			if(amount >0)	VMKernel.evict_list[cur_ppn].pageEntry.dirty = true;
 			System.arraycopy(data, offset, memory, cur_ppn_addr, length);
 			// unpin the p p now allow eviction
 			VMKernel.evict_list[cur_ppn].pinned = false;
@@ -352,7 +352,7 @@ public class VMProcess extends UserProcess {
 	/* This is the helper method that will be called in handlePgFault
 	 * to evict a physical page when no free physical pages available
 	 */
-	private void evict(CoffSection section) {
+	private void evict() {
 		
 		int ind_evict = -1;
 		int num_phyPages = Machine.processor().getNumPhysPages();
@@ -370,8 +370,8 @@ public class VMProcess extends UserProcess {
 			}
 			// if the entry is used, go to the next victim index to look for
 			// the next unused entry to evict
-			if(evict_list[VMKernel.victimTrack].pageEntry.used ||
-				evict_list[VMKernel.victimTrack].pageEntry.pinned) {
+			if(VMKernel.evict_list[VMKernel.victimTrack].pageEntry.used ||
+				VMKernel.evict_list[VMKernel.victimTrack].pageEntry.pinned) {
 				// in order to use the clock algorithm, increment victimTrack
 				// in the range of all possible indices, accomplished by mod
 				VMKernel.victimTrack = (VMKernel.victimTrack+1)%num_phyPages;
@@ -515,10 +515,12 @@ public class VMProcess extends UserProcess {
 				// after gaining the free physical page, or there have been enough pp
 				if(!UserKernel.free_physical_pages.isEmpty()) {
 				
+					int ppn = UserKernel.free_physical_pages.removeLast();
+					// add the page to the loaded list
+					loaded_pages.add(ppn);
 					// SWAP IN a page if the page to be accessed is dirty, indicating
 					// it has been swapped out before
 					if(pageTable[demandVpn].dirty) {
-
 
 //						VMKernel.swp_file.read();
 //						VMKernel.free_swp_pages()
@@ -530,9 +532,6 @@ public class VMProcess extends UserProcess {
 
 					else {
 						//System.out.println("the size of physical pages is after :" + UserKernel.free_physical_pages.size());
-						int ppn = UserKernel.free_physical_pages.removeLast();
-						// add the page to the loaded list
-						loaded_pages.add(ppn);
 						// create a zero_filled byte array
 						byte[] zero_filler = new byte[pageSize];
 						for (byte c: zero_filler)
