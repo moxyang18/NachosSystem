@@ -66,14 +66,6 @@ public class VMProcess extends UserProcess {
 		}
 
 		int bytes_read = 0;
-//		for(int i = 0; i < numPages; i++) {
-			// loop through the pagetable to find the target vpn
-//			if (cur_vpn == pageTable[i].vpn && pageTable[i].valid) {
-//				cur_ppn = pageTable[i].ppn;
-//				break;
-//			}
-//		}
-
 		// check if the page is invalid
 		if(pageTable[cur_vpn].valid == false) {
 			handlePgFault(vaddr+bytes_read);
@@ -119,7 +111,6 @@ public class VMProcess extends UserProcess {
 		// this page is used now
 		pageTable[cur_vpn].used = true;
 
-//		Boolean notExist = true;
 		// while the virtual pages are contiguous, the physical pages are not
 		// so we need to loop through to find the next physical page to fetch
 		// data if there are still more bytes required to read
@@ -130,7 +121,7 @@ public class VMProcess extends UserProcess {
 			cur_vpn++;
 			// check if the page is invalid
 			if(pageTable[cur_vpn].valid == false) {
-				handlePgFault(vaddr+count*4);
+				handlePgFault(vaddr+bytes_read);
 				// if the page still remains invalid, return 0
 				if(pageTable[cur_vpn].valid == false) {
 					VMKernel.lock3.release();	
@@ -200,25 +191,14 @@ public class VMProcess extends UserProcess {
 			return 0;
 		}
 		int bytes_written = 0;
-//		for(int i = 0; i < numPages; i++) {
-			// loop through the pagetable to find the target page, which should not be readonly
-//			if (cur_vpn == pageTable[i].vpn && pageTable[i].valid && !pageTable[i].readOnly) {
-//				cur_ppn = pageTable[i].ppn;
-//				break;
-//			}
-//		}
-
 		// if the page is not valid, call handlePgFault to prepare new page
 		if(pageTable[cur_vpn].valid == false) {
-
 			handlePgFault(vaddr+bytes_written);
 			if(pageTable[cur_vpn].valid == false) {
 				VMKernel.lock3.release();	
 				return 0;
 			}
 		}
-		// if the current ppn is still not modified/ invalid, simply return 0
-		//              if(cur_ppn <0 || !pageTable[cur_vpn].valid) return 0;
 
 		int cur_ppn = pageTable[cur_vpn].ppn;
 
@@ -269,7 +249,7 @@ public class VMProcess extends UserProcess {
 			}
 			// if the page is not valid, call handlePgFault to prepare new page
 			if(pageTable[cur_vpn].valid == false) {
-				handlePgFault(vaddr+count*4);
+				handlePgFault(vaddr+bytes_written);
 				count++;
 				if(pageTable[cur_vpn].valid == false) {
 					VMKernel.lock3.release();	
@@ -319,74 +299,19 @@ public class VMProcess extends UserProcess {
 	 * @return <tt>true</tt> if successful.
 	 */
 	protected boolean loadSections() {
-		
-		/*
-		int numPhysPages = Machine.processor().getNumPhysPages();
-
-		if (numPages > numPhysPages) {
-			coff.close();
-			Lib.debug(dbgProcess, "\tinsufficient physical memory");
-			return false;
-		}
-
-		// create a pageTable of the needed number of page entries
-		pageTable = new TranslationEntry[numPages];
-
-	 	// initilaize all entries as invalid
-		for (int i = 0; i < numPages; i++)
-			pageTable[i] = new TranslationEntry(i, i, false, false, false, false);
-		
-		return true;
-		
-		*/
-
 		UserKernel.lock1.acquire();
-
 		int numPhysPages = Machine.processor().getNumPhysPages();
-
 		if (numPages > numPhysPages) {
 			coff.close();
 			Lib.debug(dbgProcess, "\tinsufficient physical memory");
 			UserKernel.lock1.release();
 			return false;
 		}
-
 		// create a pageTable of the needed number of page entries
 		// set every entry to invalid
 		pageTable = new TranslationEntry[numPages];
-		for (int i = 0; i < numPages; i++)
+		for (int i = 0; i < numPages; i++) {
 			pageTable[i] = new TranslationEntry(i, -1, false, false, false, false);
-
-		int section_vpn = -1;
-		int num_assigned = -1;
-		// load sections
-		for (int s = 0; s < coff.getNumSections(); s++) {
-			CoffSection section = coff.getSection(s);
-
-			Lib.debug(dbgProcess, "\tinitializing " + section.getName()
-					+ " section (" + section.getLength() + " pages)");
-
-			for (int i = 0; i < section.getLength(); i++) {
-				int vpn = section.getFirstVPN() + i;
-				section_vpn = vpn;
-				// assign the page frame number of the physical page
-				//System.out.println("the size of physical pages is:" + UserKernel.free_physical_pages.size());
-	//			int ppn = UserKernel.free_physical_pages.removeLast();
-
-
-				// add the page to the loaded list
-	//			loaded_pages.add(ppn);
-
-				// Load a page from this segment of the current pagetable into physical memory.
-				// section.loadPage(i, ppn);
-
-	//			num_assigned++;
-
-				// if this coff section is read-only create the entry with
-				// setting the readOnly bit to be true
-	//			pageTable[num_assigned] = new TranslationEntry(vpn, ppn, true, section.isReadOnly(), false, false);
-					
-			}
 		}
 		UserKernel.lock1.release();
 		return true;
@@ -409,7 +334,6 @@ public class VMProcess extends UserProcess {
 	 */
 	public void handleException(int cause) {
 		Processor processor = Machine.processor();
-
 		switch (cause) {
 			// handle the case when pagefault exception happens
 			case Processor.exceptionPageFault:
@@ -560,7 +484,7 @@ public class VMProcess extends UserProcess {
 
 						// if this coff section is read-only create the entry with
 						// setting the readOnly bit to be true
-						// also set the used bit to true         ???????????????????????????????????????????
+						// also set the used bit to true 
 						pageTable[cur_vpn] = new TranslationEntry(cur_vpn, ppn, true, section.isReadOnly(), true, false);
 	//					page_found = true;
 	//					break;
@@ -568,7 +492,6 @@ public class VMProcess extends UserProcess {
 					// set for the evict_list, for each ppn set the same entry as for the pageTable
 					VMKernel.evict_list[ppn].pageEntry = pageTable[cur_vpn];
 					VMKernel.evict_list[ppn].process = this;
-/////////////					VMKernel.evict_list[ppn].pinned    ????????
 					// return after prepared the demand page
 					UserKernel.lock1.release();
 					return;	
