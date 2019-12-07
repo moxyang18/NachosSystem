@@ -108,6 +108,8 @@ public class VMKernel extends UserKernel {
 	protected static PageFrame[] evict_list;
 	// using a single, global swap file across all processes.
 	protected static OpenFile swp_file;
+	// used to count the number of assigned swap number
+	public static int swap_count = 0;
 	// As with physical memory in project 2, a global free list works well. You can assume that the swap 
 	// file can grow arbitrarily, and that there should not be any read/write errors. Assert if there are.
 	public static LinkedList<Integer> free_swp_pages;

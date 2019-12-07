@@ -350,7 +350,7 @@ public class VMProcess extends UserProcess {
 	 * to evict a physical page when no free physical pages available
 	 */
 	private void evict() {
-		
+		byte[] memory = Machine.processor().getMemory();
 		int ind_evict = -1;
 		int num_phyPages = Machine.processor().getNumPhysPages();
 		// in the while loop until finding a valid page to evict
@@ -391,34 +391,36 @@ public class VMProcess extends UserProcess {
 		// SWAP OUT a page if the page to be evicted is dirty by Openfile.write()
 		if(evict_frame.pageEntry.dirty){
 
-			if(VMKernel.free_swp_pages.isEmpty()){}
-			else{
-
-	//			VMKernel.swp_file.write();
-
-
-
-
-
-				
-
-				// discussion says dont swap if section is readonly
-
+			int swap_ind = -1;
+			// discussion says dont swap if section is readonly
+			// cant be dirty if is readonly
+			// if the ids aren't enough
+			if(VMKernel.free_swp_pages.isEmpty()){
+				swap_ind = VMKernel.swap_count++;
 			}
+			
+			// if not empty, remove
+			else{
+				swap_ind = VMKernel.free_swp_pages.removeFirst();
+			}
+			// swap out by writing
+			VMKernel.evict_list[ind_evict].pageEntry.vpn = swap_ind;
+			VMKernel.swp_file.write(swap_ind*pageSize, memory,
+					Processor.makeAddress(VMKernel.evict_list[ind_evict].pageEntry.ppn, 0), pageSize);
 		}
 
 		// otherwise the page can be used directly
 		// add the ppn that can be used back to the free physical page
 		int evict_ppn = evict_frame.pageEntry.ppn;
 		UserKernel.free_physical_pages.add(evict_ppn);
-
 		// remove the page from the process at the same time
 		evict_frame.process.loaded_pages.remove(evict_ppn);
-
 		// Invalidate PTE and TLB entry of the victim page
 		evict_frame.pageEntry.valid = false;
 
 	}
+
+
 
 	/* This is the helper method that handles the pagefault when it happens
 	 * Prepare the demanded page when needed.	
@@ -432,6 +434,7 @@ public class VMProcess extends UserProcess {
 		}
 		UserKernel.lock1.acquire();
 		int num_phyPages = Machine.processor().getNumPhysPages();
+		byte[] memory = Machine.processor().getMemory();
 		int section_vpn = -1;
 		int cur_vpn = -1;
 //		int num_assigned = -1;         /////////////////////////////////////// remove?
@@ -461,22 +464,19 @@ public class VMProcess extends UserProcess {
 					// add the page to the loaded list
 					loaded_pages.add(ppn);
 
-					// swap in a page if the page to be accessed is dirty, indicating
+					// SWAP IN a page if the page to be accessed is dirty, indicating
 					// it has been swapped out before
 					if(pageTable[demandVpn].dirty) {
 
 						// ??????????????????????????????????????????????
 
+						VMKernel.swapFile.read(pageSize * pageTable[cur_vpn].vpn, memory,
+							 Processor.makeAddress(ppn, 0), pageSize);
 
+						VMKernel.free_swp_pages.add(pageTable[cur_vpn].vpn);	 
+						pageTable[cur_vpn] = new TranslationEntry(cur_vpn, ppn, true, false, true, true);
 
-
-
-
-
-
-
-
-						pageTable[cur_vpn] = new TranslationEntry(cur_vpn, ppn, true, section.isReadOnly(), true, true);
+						//pageTable[cur_vpn] = new TranslationEntry(cur_vpn, ppn, true, section.isReadOnly(), true, true);
 					}
 
 					// otherwise the accessed page is clean, same as before
@@ -518,10 +518,12 @@ public class VMProcess extends UserProcess {
 					if(pageTable[demandVpn].dirty) {
 
 //						VMKernel.swp_file.read();
-//						VMKernel.free_swp_pages()
+//						VMKernel.free_swp_pages.add()
 
+						VMKernel.swapFile.read(pageSize * pageTable[section_vpn].vpn, memory,
+							 Processor.makeAddress(ppn, 0), pageSize);
 
-
+						VMKernel.free_swp_pages.add(pageTable[section_vpn].vpn);	 
 						pageTable[section_vpn] = new TranslationEntry(section_vpn, ppn, true, false, true, true);
 					}
 
@@ -532,7 +534,7 @@ public class VMProcess extends UserProcess {
 						for (byte c: zero_filler)
 							c = 0;
 						// zero fill the physical page ???
-						System.arraycopy(zero_filler, 0, Machine.processor().getMemory(), Processor.makeAddress(ppn, 0), pageSize);	
+						System.arraycopy(zero_filler, 0, memory, Processor.makeAddress(ppn, 0), pageSize);	
 						// also set the TLBeNTRY
 						pageTable[section_vpn] = new TranslationEntry(section_vpn, ppn, true, false, true, false);
 					}
