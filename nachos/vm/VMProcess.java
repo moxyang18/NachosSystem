@@ -371,7 +371,7 @@ public class VMProcess extends UserProcess {
 			// if the entry is used, go to the next victim index to look for
 			// the next unused entry to evict
 			if(VMKernel.evict_list[VMKernel.victimTrack].pageEntry.used ||
-				VMKernel.evict_list[VMKernel.victimTrack].pageEntry.pinned) {
+				VMKernel.evict_list[VMKernel.victimTrack].pinned) {
 				// in order to use the clock algorithm, increment victimTrack
 				// in the range of all possible indices, accomplished by mod
 				VMKernel.victimTrack = (VMKernel.victimTrack+1)%num_phyPages;
@@ -393,10 +393,8 @@ public class VMProcess extends UserProcess {
 		// how to achieve this ??
 		// SWAP OUT a page if the page to be evicted is dirty by Openfile.write()
 		if(evict_frame.pageEntry.dirty){
-			if(section.isReadOnly()) {
 
-
-			}
+			if(VMKernel.free_swp_pages.isEmpty()){}
 			else{
 
 	//			VMKernel.swp_file.write();
@@ -459,7 +457,7 @@ public class VMProcess extends UserProcess {
 					// if there is no physical page left to be assigned
 					if(UserKernel.free_physical_pages.isEmpty()) {
 						//////////////////////////////// cannot assign if no free physical page
-						evict(section);
+						this.evict();
 					}
 					// we can thus always assign a physical page
 					int ppn = UserKernel.free_physical_pages.removeLast();
@@ -510,7 +508,7 @@ public class VMProcess extends UserProcess {
 			section_vpn++;
 			if(section_vpn == demandVpn){
 				if(UserKernel.free_physical_pages.isEmpty()) {
-					this.evict(null);
+					this.evict();
 				}
 				// after gaining the free physical page, or there have been enough pp
 				if(!UserKernel.free_physical_pages.isEmpty()) {
