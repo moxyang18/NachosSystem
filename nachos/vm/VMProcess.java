@@ -44,13 +44,15 @@ public class VMProcess extends UserProcess {
 	 * @return the number of bytes successfully transferred.
 	 */
 	public int readVirtualMemory(int vaddr, byte[] data, int offset, int length) {
+		VMKernel.lock3.acquire();
 		Lib.assertTrue(offset >= 0 && length >= 0
 				&& offset + length <= data.length);
 
-		if (vaddr <0) return 0;
-
-		
-		VMKernel.lock3.acquire();
+		if (vaddr <0) {
+			VMKernel.lock3.release();
+			return 0;
+		}
+	
 
 		int num_phyPages = Machine.processor().getNumPhysPages();
 		byte[] memory = Machine.processor().getMemory();
@@ -85,7 +87,8 @@ public class VMProcess extends UserProcess {
 		int cur_ppn_addr = cur_ppn*pageSize + cur_vpn_offset;
 		// if the address is out of bounds, simply return 0
 		if(cur_ppn_addr <0 || cur_ppn_addr>=memory.length) {
-			VMKernel.lock3.release();		
+			VMKernel.lock3.release();	
+			VMKernel.cond.wake();	
 			return 0;
 		}
 
@@ -117,10 +120,14 @@ public class VMProcess extends UserProcess {
 		// so we need to loop through to find the next physical page to fetch
 		// data if there are still more bytes required to read
 		
-		int count = 1;
 		while (length>0) {
+
 			// update the virtual page number
 			cur_vpn++;
+			if (cur_vpn >= numPages) {
+				VMKernel.lock3.release();	
+				return 0;
+			}
 			// check if the page is invalid
 			if(pageTable[cur_vpn].valid == false) {
 				handlePgFault(vaddr+bytes_read);
@@ -172,15 +179,17 @@ public class VMProcess extends UserProcess {
 	 * @return the number of bytes successfully transferred.
 	 */
 	public int writeVirtualMemory(int vaddr, byte[] data, int offset, int length) {
+		VMKernel.lock3.acquire();
 		Lib.assertTrue(offset >= 0 && length >= 0
 				&& offset + length <= data.length);
 
 		// the virtual address must be valid		
-		if(vaddr < 0) return 0;
-
+		if(vaddr < 0) {
+			VMKernel.lock3.release();	
+			return 0;
+		}
 		byte[] memory = Machine.processor().getMemory();
-
-		VMKernel.lock3.acquire();	
+	
 		int num_phyPages = Machine.processor().getNumPhysPages();
 
 		/* Extract the page number component and the offset from a 32-bit address.*/
@@ -200,6 +209,11 @@ public class VMProcess extends UserProcess {
 				VMKernel.lock3.release();	
 				return 0;
 			}
+		}
+
+		if(pageTable[cur_vpn].readOnly) {
+			VMKernel.lock3.release();	
+			return 0;
 		}
 
 		int cur_ppn = pageTable[cur_vpn].ppn;
@@ -222,7 +236,7 @@ public class VMProcess extends UserProcess {
 		VMKernel.pinCount += 1;
 		// If the page is modified, set dirty bit to true.
 		// by checking the amount to write is greater than 0
-		if(amount >0)	VMKernel.evict_list[cur_ppn].pageEntry.dirty = true;
+		if(amount >0)	pageTable[cur_vpn].dirty = true;
 		System.arraycopy(data, offset, memory, cur_ppn_addr, amount);
 		// after the data successfully transferred to the array, we unpin the physical
 		// page, update total number of pinned pages, and wake if valid
@@ -276,7 +290,7 @@ public class VMProcess extends UserProcess {
 			// pin the physical page to restrict evict untimely
 			VMKernel.evict_list[cur_ppn].pinned = true;
 			VMKernel.pinCount += 1;
-			if(amount >0)	VMKernel.evict_list[cur_ppn].pageEntry.dirty = true;
+			if(amount >0)	pageTable[cur_vpn].dirty = true;
 			System.arraycopy(data, offset, memory, cur_ppn_addr, length);
 			// unpin the p p now allow eviction
 			VMKernel.evict_list[cur_ppn].pinned = false;
