@@ -1,0 +1,48 @@
+Team Members: Yanzhi Ding (A14109703), 
+			  Moxuan Yang (A13916673), 
+			  Meena Kaliswamy (A12983349);
+
+Code Description:
+-----------------
+Part 1:
+In this part, we implemented demand paging. In VMProcess.loadSections, we
+initialize all of the translationEntries as invalid. Then we created a
+helper method handlePgFault that handles the pageFault and creates a 
+new page as demanded when an exception happens. Then we override the
+readVirtualMemory and writeVirtualMemory methods, which explicitly call
+handlePgFault when trying to access an invalid page. readVirtualMemory and
+writeVirtualMemory handle invalid pages and page faults. Both methods 
+directly access physical memory to read/write data between user-level 
+virtual address spaces and the Nachos kernel. These methods will now need 
+to check to see if the virtual page is valid. If it is valid, it can use 
+the physical page as before. If the page is not valid, then it will need 
+fault the page in as with any other page fault. To test this part, we run
+"nachos -m 64 -x swap4.coff" "nachos -m 64 -x swap5.coff" "nachos -x write1
+.coff" and "nachos -m 64 -x write10.coff" to make the output does not report
+any error.   
+
+----------------
+Part 2:
+In this part, we implemented page replacement to free up a physical page
+frame to handle page faults. We extend the handlePgFault with a helper
+method evict(), which is based on the clock algorithm and choose the victim
+page that is unused circularly in the range of all physical pages. Then, we
+took care of the dirty bit, setting it to true every time a page has been
+written. Then based on the dirty bit, we implemented swapping which allows
+the kernel to save the page content in the swap file in order to be able
+to recover contents of the page from disk. During the implementation, we 
+created an inverse pageTable which is a pageFrame array, with each pageFrame
+storing the process, the translationEntry and the boolean pinned all related
+to each physical page. When the page is pinned as every other page, we will
+call sleep on the condition, only to wake it after any page is unpinned. This
+gurantees there will be no evicting of any page when it is being written or
+read. To test this part, we follow the instructions in the writeup, run the
+program with less physical memory such as "% nachos -m 8 -x swap4.coff" to 
+make sure the output is as expected. Then we did the same thing for other
+test files with flag -m and allocating less physical memory, and verify if
+the output conforms with proj2.
+
+—————————————-
+Contribution: For this assignments,the three of us worked together, 
+assigned roles of the driver, the coder, and the test writer and 
+switched our roles for different part.
