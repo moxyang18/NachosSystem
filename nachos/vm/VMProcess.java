@@ -101,7 +101,9 @@ public class VMProcess extends UserProcess {
 		// page, update total number of pinned pages, and wake if valid
 		VMKernel.evict_list[cur_ppn].pinned = false;
 		VMKernel.pinCount -= 1;
-		if(VMKernel.pinCount < num_phyPages) {UserKernel.cv1.wake();}
+		if(VMKernel.pinCount < num_phyPages) {
+			UserKernel.cv1.wake();
+		}
 		// update the length left to be read
 		length -= amount;
 		// update the bytes having been read
@@ -305,12 +307,7 @@ public class VMProcess extends UserProcess {
 	protected boolean loadSections() {
 		UserKernel.lock1.acquire();
 		int numPhysPages = Machine.processor().getNumPhysPages();
-		if (numPages > numPhysPages) {
-			coff.close();
-			Lib.debug(dbgProcess, "\tinsufficient physical memory");
-			UserKernel.lock1.release();
-			return false;
-		}
+
 		// create a pageTable of the needed number of page entries
 		// set every entry to invalid
 		pageTable = new TranslationEntry[numPages];
