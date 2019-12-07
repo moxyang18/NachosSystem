@@ -379,18 +379,15 @@ public class VMProcess extends UserProcess {
 			if(VMKernel.pinCount >= num_phyPages) {
 				VMKernel.cond.sleep();        //code will continue once cv1 is waken
 			}
-			// if the entry is used, go to the next victim index to look for
-			// the next unused entry to evict
-			if(VMKernel.evict_list[VMKernel.victimTrack].pageEntry.used ||
-				VMKernel.evict_list[VMKernel.victimTrack].pinned) {
-				// in order to use the clock algorithm, increment victimTrack
-				// in the range of all possible indices, accomplished by mod
-				VMKernel.victimTrack = (VMKernel.victimTrack+1)%num_phyPages;
+			if(VMKernel.evict_list[VMKernel.victimTrack].pinned){
 				continue;
+			}else{
+				while (VMKernel.evict_list[VMKernel.victimTrack].pageEntry.used) {
+					VMKernel.evict_list[VMKernel.victimTrack].pageEntry.used = false;
+					VMKernel.victimTrack = (VMKernel.victimTrack+1)%num_phyPages;
+				}
+				break;
 			}
-			// otherwise the current victim page is not used, evict it
-			// break out of the while loop with the found victim index
-			break;
 		}
 
 		// store the victim index and increment the victimTrack variable to
