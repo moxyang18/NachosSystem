@@ -1,6 +1,5 @@
 package nachos.vm;
 
-import javafx.util.Pair;
 import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
@@ -53,6 +52,7 @@ public class VMProcess extends UserProcess {
 		
 		VMKernel.lock3.acquire();
 
+		int num_phyPages = Machine.processor().getNumPhysPages();
 		byte[] memory = Machine.processor().getMemory();
 
 		/* find the physical address using the pagetable and vaddr */
@@ -179,7 +179,7 @@ public class VMProcess extends UserProcess {
 		byte[] memory = Machine.processor().getMemory();
 
 		VMKernel.lock3.acquire();	
-//		int numPhysPages = Machine.processor().getNumPhysPages();
+		int num_phyPages = Machine.processor().getNumPhysPages();
 
 		/* Extract the page number component and the offset from a 32-bit address.*/
 		int cur_vpn = Processor.pageFromAddress(vaddr);
@@ -355,6 +355,7 @@ public class VMProcess extends UserProcess {
 	private void evict(CoffSection section) {
 		
 		int ind_evict = -1;
+		int num_phyPages = Machine.processor().getNumPhysPages();
 		// in the while loop until finding a valid page to evict
 		while(true) {		
 		//		for(int victimInd = 0; victimInd<Machine.processor().getNumPhysPages(); victimInd++) {
@@ -509,7 +510,7 @@ public class VMProcess extends UserProcess {
 			section_vpn++;
 			if(section_vpn == demandVpn){
 				if(UserKernel.free_physical_pages.isEmpty()) {
-					this.evict(section);
+					this.evict(null);
 				}
 				// after gaining the free physical page, or there have been enough pp
 				if(!UserKernel.free_physical_pages.isEmpty()) {
