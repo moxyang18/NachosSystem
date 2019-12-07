@@ -218,6 +218,9 @@ public class VMProcess extends UserProcess {
 		// and increment the number of pinned counts
 		VMKernel.evict_list[cur_ppn].pinned = true;
 		VMKernel.pinCount += 1;
+		// If the page is modified, set dirty bit to true.
+		// by checking the amount to write is greater than 0
+		if(amount >0)	VMKernel.evict_list[cur_ppn].pageEntry.dirty = true;
 		System.arraycopy(data, offset, memory, cur_ppn_addr, amount);
 		// after the data successfully transferred to the array, we unpin the physical
 		// page, update total number of pinned pages, and wake if valid
@@ -271,6 +274,7 @@ public class VMProcess extends UserProcess {
 			// pin the physical page to restrict evict untimely
 			VMKernel.evict_list[cur_ppn].pinned = true;
 			VMKernel.pinCount += 1;
+			if(amount >0)	VMKernel.evict_list[cur_ppn].dirty = true;
 			System.arraycopy(data, offset, memory, cur_ppn_addr, length);
 			// unpin the p p now allow eviction
 			VMKernel.evict_list[cur_ppn].pinned = false;
@@ -480,14 +484,10 @@ public class VMProcess extends UserProcess {
 					else {
 						// Load a page from this segment of the current pagetable into physical memory.
 						section.loadPage(i, ppn);
-	//					num_assigned++;                ////////////////////////// remove?
-
 						// if this coff section is read-only create the entry with
 						// setting the readOnly bit to be true
 						// also set the used bit to true 
 						pageTable[cur_vpn] = new TranslationEntry(cur_vpn, ppn, true, section.isReadOnly(), true, false);
-	//					page_found = true;
-	//					break;
 					}
 					// set for the evict_list, for each ppn set the same entry as for the pageTable
 					VMKernel.evict_list[ppn].pageEntry = pageTable[cur_vpn];
@@ -511,7 +511,7 @@ public class VMProcess extends UserProcess {
 				// after gaining the free physical page, or there have been enough pp
 				if(!UserKernel.free_physical_pages.isEmpty()) {
 				
-					// swap in a page if the page to be accessed is dirty, indicating
+					// SWAP IN a page if the page to be accessed is dirty, indicating
 					// it has been swapped out before
 					if(pageTable[demandVpn].dirty) {
 
