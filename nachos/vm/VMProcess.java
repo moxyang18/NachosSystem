@@ -102,7 +102,7 @@ public class VMProcess extends UserProcess {
 		VMKernel.evict_list[cur_ppn].pinned = false;
 		VMKernel.pinCount -= 1;
 		if(VMKernel.pinCount < num_phyPages) {
-			UserKernel.cv1.wake();
+			VMKernel.cond.wake();
 		}
 		// update the length left to be read
 		length -= amount;
@@ -147,7 +147,7 @@ public class VMProcess extends UserProcess {
 			VMKernel.evict_list[cur_ppn].pinned = false;
 			VMKernel.pinCount -= 1;
 			if(VMKernel.pinCount < num_phyPages) {
-				UserKernel.cv1.wake();
+				VMKernel.cond.wake();
 			}
 			// update all flags/ counters
 //			notExist = true;
@@ -229,7 +229,7 @@ public class VMProcess extends UserProcess {
 		VMKernel.evict_list[cur_ppn].pinned = false;
 		VMKernel.pinCount -= 1;
 		if(VMKernel.pinCount < num_phyPages) {
-			UserKernel.cv1.wake();
+			VMKernel.cond.wake();
 		}	
 		// update the length left to be read
 		length -= amount;
@@ -282,7 +282,7 @@ public class VMProcess extends UserProcess {
 			VMKernel.evict_list[cur_ppn].pinned = false;
 			VMKernel.pinCount -= 1;
 			if(VMKernel.pinCount < num_phyPages) {
-				UserKernel.cv1.wake();
+				VMKernel.cond.wake();
 			}	
 			// update all flags/ counters
 //			notExist = true;
@@ -363,7 +363,7 @@ public class VMProcess extends UserProcess {
 			//page has to be delayed until either a physical page becomes
 			//free or a page is unpinned.		
 			if(VMKernel.pinCount >= num_phyPages) {
-				UserKernel.cv1.sleep();        //code will continue once cv1 is waken
+				VMKernel.cond.sleep();        //code will continue once cv1 is waken
 			}
 			// if the entry is used, go to the next victim index to look for
 			// the next unused entry to evict
