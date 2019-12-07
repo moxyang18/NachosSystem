@@ -470,7 +470,7 @@ public class VMProcess extends UserProcess {
 
 						// ??????????????????????????????????????????????
 
-						VMKernel.swapFile.read(pageSize * pageTable[cur_vpn].vpn, memory,
+						VMKernel.swp_file.read(pageSize * pageTable[cur_vpn].vpn, memory,
 							 Processor.makeAddress(ppn, 0), pageSize);
 
 						VMKernel.free_swp_pages.add(pageTable[cur_vpn].vpn);	 
@@ -520,7 +520,7 @@ public class VMProcess extends UserProcess {
 //						VMKernel.swp_file.read();
 //						VMKernel.free_swp_pages.add()
 
-						VMKernel.swapFile.read(pageSize * pageTable[section_vpn].vpn, memory,
+						VMKernel.swp_file.read(pageSize * pageTable[section_vpn].vpn, memory,
 							 Processor.makeAddress(ppn, 0), pageSize);
 
 						VMKernel.free_swp_pages.add(pageTable[section_vpn].vpn);	 
