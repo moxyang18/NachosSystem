@@ -30,7 +30,7 @@ public class VMKernel extends UserKernel {
 		for(int cur_ppn = 0; cur_ppn < n_ppgs; cur_ppn++) {
 			evict_list[cur_ppn] = new PageFrame();
 		}
-
+		cond = new Condition(lock3);
 		// should handle swap file here?
 		swp_file = ThreadedKernel.fileSystem.open("Global_Swap", true);
 		free_swp_pages = new LinkedList<Integer>();
@@ -102,6 +102,7 @@ public class VMKernel extends UserKernel {
 	public static int pinCount = 0;
 	public static int victimTrack = 0;
 	public static Lock lock3;
+	public static Condition cond;
 	// this static PageFrame is to keep track of each physical page and
 	// its relevant process, whether it is pinned and the TranslationEntry
 	protected static PageFrame[] evict_list;
