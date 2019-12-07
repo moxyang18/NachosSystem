@@ -415,7 +415,7 @@ public class VMProcess extends UserProcess {
 			
 			// if not empty, remove
 			else{
-				swap_ind = VMKernel.free_swp_pages.removeFirst();
+				swap_ind = VMKernel.free_swp_pages.removeLast();
 			}
 			// swap out by writing
 			VMKernel.evict_list[ind_evict].pageEntry.vpn = swap_ind;
