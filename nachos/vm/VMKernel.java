@@ -34,7 +34,7 @@ public class VMKernel extends UserKernel {
 
 		// should handle swap file here?
 		swp_file = ThreadedKernel.fileSystem.open("Global_Swap", true);
-
+		free_swp_pages = new LinkedList<Integer>();
 	}
 
 	/**
@@ -110,7 +110,7 @@ public class VMKernel extends UserKernel {
 	protected static OpenFile swp_file;
 	// As with physical memory in project 2, a global free list works well. You can assume that the swap 
 	// file can grow arbitrarily, and that there should not be any read/write errors. Assert if there are.
-	protected static LinkedList<> swp_list;
+	public static LinkedList<Integer> free_swp_pages;
 
 
 }

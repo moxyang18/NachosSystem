@@ -390,12 +390,15 @@ public class VMProcess extends UserProcess {
 		//If the page is dirty, though, the kernel must save the page 
 		//contents in the swap file on disk.
 		// how to achieve this ??
-		// swap out a page if the page to be evicted is dirty
+		// SWAP OUT a page if the page to be evicted is dirty by Openfile.write()
 		if(evict_frame.pageEntry.dirty){
-			if(section.isReadOnly()) {}
+			if(section.isReadOnly()) {
+
+
+			}
 			else{
 
-
+	//			VMKernel.swp_file.write();
 
 
 
@@ -516,8 +519,8 @@ public class VMProcess extends UserProcess {
 					if(pageTable[demandVpn].dirty) {
 
 
-
-
+//						VMKernel.swp_file.read();
+//						VMKernel.free_swp_pages()
 
 
 
